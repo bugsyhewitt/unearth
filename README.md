@@ -7,7 +7,7 @@
 
 **Unearth the real origin server hiding behind a CDN.**
 
-`unearth` discovers origin IPs by running thirteen recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
+`unearth` discovers origin IPs by running sixteen recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, email `Received:`-header mining, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
 
 ---
 
@@ -73,6 +73,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `favicon_hash` | Active | Yes — `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT` | 0.75 | Favicon MurmurHash3 pivot — fetches `/favicon.ico`, queries Shodan/Censys for hosts sharing the same favicon |
 | `asn_sweep` | Active | No | 0.70 | BGPView ASN-range sweep — resolves target DNS to find its ASN, then probes live IPs across all ASN prefixes with host-header injection to find the real origin |
 | `jarm_fingerprint` | Active | No | 0.70 | JARM TLS active fingerprinting — sends 10 crafted ClientHellos to candidate IPs, hashes the handshake response into a 62-char fingerprint, and flags candidates whose JARM matches the target's (rejecting known CDN-edge signatures) |
+| `email_header` | Passive | No | 0.85 | Email `Received:`-header mining — parses an operator-supplied `.eml` file (`--email-file`) and surfaces non-CDN relay IPs from the mail hop chain |
 | `error_page` | Aggressive | No | 0.60 | Error-page leak detection on the live target |
 | `ipv6_probe` | Aggressive | No | 0.70 | IPv6 exposure probe — resolves AAAA and checks for CDN bypass |
 
@@ -82,7 +83,7 @@ See [docs/techniques.md](docs/techniques.md) for detailed descriptions of each t
 
 ## API keys
 
-`unearth` is fully usable with zero API keys. The keyless passive techniques (`ct_fingerprint`, `crtsh`, `spf_mx`, `subdomain_enum`, `split_dns`) plus keyless active techniques (`host_header`, `asn_sweep`, `jarm_fingerprint`) cover the common case. API keys extend coverage with higher-confidence keyed sources.
+`unearth` is fully usable with zero API keys. The keyless passive techniques (`ct_fingerprint`, `crtsh`, `spf_mx`, `subdomain_enum`, `split_dns`, `email_header`) plus keyless active techniques (`host_header`, `asn_sweep`, `jarm_fingerprint`) cover the common case. API keys extend coverage with higher-confidence keyed sources.
 
 Set keys in your environment before running:
 
@@ -146,6 +147,7 @@ Flags:
       --max-shodan int      Shodan query cap per target (default 10)
       --max-st int          SecurityTrails query cap per target (default 20)
       --weights string      Path to technique-weight overrides YAML
+      --email-file string   Path to a raw email (.eml); its Received: headers are mined for origin IPs
       --verbose             Print per-technique results to stderr
       --silent              Suppress all stderr output
 

@@ -257,7 +257,18 @@ flagged as a strong origin candidate.
 
 ---
 
-## P2 — Email header leak technique (`email_header`)
+## P2 — Email header leak technique (`email_header`) — ✅ IMPLEMENTED (passive variant, Phase 2, 2026-05-28)
+
+> Shipped in `pkg/techniques/emailheader.go`. Passive tier, weight 0.85. Parses
+> an operator-supplied raw email (`.eml`) via the standard-library `net/mail`
+> package, walks the `Received:` header chain, and surfaces every public,
+> non-CDN IP literal as an origin candidate. Filters RFC1918 / unique-local,
+> loopback, link-local, and multicast addresses, plus any IP in a known CDN
+> range. Wired into the CLI as `--email-file <path>` and into the engine via
+> `RunOptions.EmailFile`; the technique skips gracefully (no candidates) when no
+> file is supplied. The **active** send-a-probe variant is deferred — it needs an
+> operator-supplied SMTP relay (`UNEARTH_SMTP_RELAY`) and a canary inbox, which
+> is operator infrastructure out of scope for this packet.
 
 **What:** A new aggressive-tier technique that, given a target domain with an
 MX record, can optionally send a test email (to a canary inbox controlled by the

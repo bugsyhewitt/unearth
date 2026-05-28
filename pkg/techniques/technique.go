@@ -176,6 +176,11 @@ type RunOptions struct {
 	// when invoking a CandidateConsumer in phase 2; for every other
 	// technique it is left nil.
 	SeedIPs []netip.Addr
+	// EmailFile is an optional path to an operator-supplied raw email
+	// message (.eml). The email_header technique parses its Received:
+	// header chain for CDN-bypassed relay IPs. Empty means the technique
+	// is skipped.
+	EmailFile string
 }
 
 // Technique is the extension point of unearth. Each technique is implemented

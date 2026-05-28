@@ -44,6 +44,10 @@ type Options struct {
 	// overrides. Empty string preserves the default behavior of consulting
 	// only the embedded defaults plus the XDG-default user file.
 	WeightsPath string
+	// EmailFile optionally points at a raw email message (.eml) whose
+	// Received: header chain the email_header technique parses for
+	// CDN-bypassed relay IPs. Empty string skips that technique.
+	EmailFile string
 }
 
 // DefaultOptions returns Options with conservative defaults: passive tier only,
@@ -167,6 +171,7 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 		Budget:      budget,
 		NoCache:     opts.NoCache,
 		Refresh:     opts.Refresh,
+		EmailFile:   opts.EmailFile,
 	}
 
 	// Select techniques, filter for missing keys, split into the
@@ -480,6 +485,7 @@ func RunTechnique(ctx context.Context, name string, target string, opts Options,
 		NoCache:     opts.NoCache,
 		Refresh:     opts.Refresh,
 		SeedIPs:     seedAddrs,
+		EmailFile:   opts.EmailFile,
 	}
 	return t.Run(tCtx, target, runOpts)
 }

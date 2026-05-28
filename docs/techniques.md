@@ -79,6 +79,18 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `email_header`
+
+**Tier:** Passive | **Weight:** 0.85 | **API key:** None
+
+**What it does:** Mines the `Received:` header chain of an operator-supplied raw email message for CDN-bypassed origin IPs. Email infrastructure is almost never routed through the CDN that fronts a website, yet it often shares the same datacenter — or even the same host — as the web origin. Each mail transfer agent stamps a `Received:` header recording the relay hop it accepted the message from, so the chain exposes internal relay IPs with high confidence. Supply a message with `--email-file <path>` (any `.eml` you already possess — a newsletter, a password-reset mail, a bounce). The technique parses it with the standard-library `net/mail` package, extracts every IPv4/IPv6 literal from the `Received:` headers, discards RFC1918 / unique-local, loopback, link-local, multicast and known-CDN addresses, and surfaces the remaining public IPs as origin candidates.
+
+**Why the high weight:** A public, non-CDN IP appearing in a real inbound `Received:` chain is direct evidence of the sender's mail relay — frequently co-located with, or identical to, the web origin. False positives are low because the private/CDN filter removes the common noise.
+
+**Limitations:** Requires the operator to supply an email; it cannot fetch one on its own. Only the passive `.eml` variant is implemented — the active "send a probe and read the bounce" variant needs an operator SMTP relay and a canary inbox and is deferred. The signal is only as good as the supplied message: a forwarded or heavily-relayed mail may bury the origin behind intermediate hops. When no `--email-file` is given the technique skips silently and contributes nothing.
+
+---
+
 ### `censys_cert`
 
 **Tier:** Passive | **Weight:** 0.90 | **API key:** `CENSYS_PLATFORM_PAT`

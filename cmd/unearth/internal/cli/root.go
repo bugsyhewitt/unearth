@@ -36,6 +36,7 @@ type rootFlags struct {
 	verbose    bool
 	silent     bool
 	weights    string
+	emailFile  string
 }
 
 // runner is the indirection through which the root command invokes
@@ -88,6 +89,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().BoolVarP(&f.verbose, "verbose", "v", false, "Verbose progress/logging to stderr")
 	cmd.Flags().BoolVar(&f.silent, "silent", false, "Suppress all non-result output")
 	cmd.Flags().StringVar(&f.weights, "weights", "", "Path to a custom weights YAML")
+	cmd.Flags().StringVar(&f.emailFile, "email-file", "", "Path to a raw email (.eml) whose Received: headers are mined for origin IPs")
 
 	cmd.AddCommand(newVersionCmd(stdout))
 	cmd.AddCommand(newCacheCmd(stdin, stdout, stderr))
@@ -128,6 +130,7 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		OverallTimeout:      f.timeout,
 		PerTechniqueTimeout: 30 * time.Second,
 		WeightsPath:         f.weights,
+		EmailFile:           f.emailFile,
 		APIKeys:             config.LoadAPIKeys(),
 	}
 
