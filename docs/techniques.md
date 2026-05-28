@@ -163,6 +163,24 @@ Active techniques make direct TCP/HTTP connections to *candidate IPs*, not to th
 
 ---
 
+### `jarm_fingerprint`
+
+**Tier:** Active | **Weight:** 0.70 | **API key:** None
+
+**What it does:** JARM is the Salesforce active TLS server-fingerprinting method. The technique sends ten hand-crafted TLS ClientHello packets — each varying the protocol version, cipher ordering (forward, reverse, top/bottom half, middle-out), extension ordering, GREASE values, and ALPN set — and folds the server's ten handshake responses into a single 62-character fingerprint. Because the fingerprint is derived purely from *how* a server negotiates TLS, two hosts running the same server software and configuration produce the same JARM even when their certificates and IPs differ.
+
+For origin discovery the technique first probes the target hostname to obtain a reference JARM, then probes each phase-1 candidate IP. A candidate whose JARM equals the reference is surfaced as a likely origin. A CDN edge node (Cloudflare, CloudFront, Fastly, Akamai) presents a distinctive, hardened JARM that differs from a stock Nginx/Apache/Caddy origin, so the match is a low-noise corroborating signal.
+
+**Phase-2 consumer:** Like `host_header`, this is a phase-2 technique — it draws its candidate pool from the phase-1 producers (`RunOptions.SeedIPs`) rather than discovering its own. An empty phase-1 result means it has nothing to validate.
+
+**CDN-signature guard:** unearth ships an embedded table of well-known CDN-edge JARM signatures. Any candidate whose JARM matches a CDN signature is rejected outright (it is another edge node, not the origin), and CDN-range seed IPs are skipped before a handshake is ever opened.
+
+**Data source:** direct TLS handshakes to candidate IPs and one reference handshake to the target — no application-layer request is made, so the technique never appears in the target's HTTP access logs. Self-contained, with no third-party API and no external module dependency.
+
+**Limitations:** Requires at least one phase-1 candidate IP and a target that completes a TLS handshake on port 443 (a plain-HTTP or closed-443 target yields no reference and therefore no candidates). Two unrelated hosts running identically configured TLS stacks can collide on the same JARM, so the signal is strongest as corroboration alongside `host_header` rather than as a lone hit — hence the conservative 0.70 weight.
+
+---
+
 ## Aggressive Techniques
 
 Aggressive techniques touch the target directly. They may appear in the target's logs or trigger security monitoring. Enabled with `--aggressive` (implies `--active`).
