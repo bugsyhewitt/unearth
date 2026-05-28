@@ -4,10 +4,10 @@
 // status to the caller; techniques drop candidates that are still inside a
 // CDN, because they cannot be the real origin.
 //
-// CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, and Imperva
-// (Incapsula). The code is structured so adding further providers is a matter
-// of dropping in a Provider value with detection markers and an embedded range
-// snapshot.
+// CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
+// (Incapsula), and Azure Front Door. The code is structured so adding further
+// providers is a matter of dropping in a Provider value with detection markers
+// and an embedded range snapshot.
 package cdn
 
 import (
@@ -28,7 +28,7 @@ import (
 
 // SnapshotDate records when the embedded range data was captured. Refresh
 // callers can compare against this to decide whether to fetch fresh ranges.
-const SnapshotDate = "2026-05-26"
+const SnapshotDate = "2026-05-28"
 
 // refreshMaxAge is how long a cached refresh file is considered fresh.
 const refreshMaxAge = 24 * time.Hour
@@ -65,6 +65,12 @@ var impervaV4Raw []byte
 
 //go:embed data/imperva-v6.txt
 var impervaV6Raw []byte
+
+//go:embed data/azurefd-v4.txt
+var azureFDV4Raw []byte
+
+//go:embed data/azurefd-v6.txt
+var azureFDV6Raw []byte
 
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
@@ -125,6 +131,12 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Imperva ranges: %v", err))
 	}
 	providers = append(providers, imperva)
+
+	azurefd, err := buildAzureFrontDoor()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Azure Front Door ranges: %v", err))
+	}
+	providers = append(providers, azurefd)
 }
 
 func buildFastly() (*Provider, error) {
@@ -200,6 +212,28 @@ func buildImperva() (*Provider, error) {
 			".incapdns.net",
 			".incapdns.com",
 			".incapsula.com",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildAzureFrontDoor() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(azureFDV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("azurefd v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(azureFDV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("azurefd v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "azurefd",
+		dnsHints: []string{
+			".azurefd.net",
+			".azureedge.net",
+			".t-msedge.net",
+			".trafficmanager.net",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -462,7 +496,24 @@ func classifyHeaders(h http.Header) string {
 	if isImpervaHeaders(h) {
 		return "imperva"
 	}
+	if isAzureFrontDoorHeaders(h) {
+		return "azurefd"
+	}
 	return ""
+}
+
+// isAzureFrontDoorHeaders reports whether the response headers carry an Azure
+// Front Door signature: the proprietary X-Azure-Ref tracking header that Front
+// Door stamps on every edge response, or an X-Cache value mentioning the Front
+// Door cache node.
+func isAzureFrontDoorHeaders(h http.Header) bool {
+	if h.Get("X-Azure-Ref") != "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-Cache")), "frontdoor") {
+		return true
+	}
+	return false
 }
 
 // isImpervaHeaders reports whether the response headers carry an Incapsula /
@@ -529,6 +580,12 @@ func collectHeaderSignals(h http.Header) []string {
 			out = append(out, "incapsula session cookie present")
 			break
 		}
+	}
+	if h.Get("X-Azure-Ref") != "" {
+		out = append(out, "header x-azure-ref present (azure front door)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-Cache")), "frontdoor") {
+		out = append(out, "header x-cache mentions frontdoor")
 	}
 	return out
 }

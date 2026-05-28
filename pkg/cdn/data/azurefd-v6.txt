@@ -1,0 +1,5 @@
+# Azure Front Door CDN/WAF IPv6 ranges — captured 2026-05-28
+# Source: Microsoft Azure ServiceTags (AzureFrontDoor.Frontend / AzureFrontDoor.Backend)
+#   https://www.microsoft.com/en-us/download/details.aspx?id=56519
+2620:1ec::/36
+2a01:111:2050::/44

@@ -445,3 +445,76 @@ func TestClassifyHeaders_Imperva(t *testing.T) {
 		}
 	})
 }
+
+// ── Azure Front Door ────────────────────────────────────────────────────────
+
+func TestIsCDNIP_AzureFrontDoor(t *testing.T) {
+	// 13.107.21.1 is inside 13.107.21.0/24, an Azure Front Door anycast range.
+	addr := netip.MustParseAddr("13.107.21.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("13.107.21.1 should be Azure Front Door CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "azurefd" {
+		t.Errorf("ProviderForIP(13.107.21.1) = %q, want azurefd", got)
+	}
+}
+
+func TestIsCDNIP_AzureFrontDoor_IPv6(t *testing.T) {
+	// 2620:1ec::1 is inside 2620:1ec::/36, an Azure Front Door IPv6 range.
+	addr := netip.MustParseAddr("2620:1ec::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2620:1ec::1 should be Azure Front Door CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "azurefd" {
+		t.Errorf("ProviderForIP(2620:1ec::1) = %q, want azurefd", got)
+	}
+}
+
+func TestProviderByDNS_AzureFrontDoor(t *testing.T) {
+	cases := map[string]string{
+		"contoso.azurefd.net":    "azurefd",
+		"assets.azureedge.net":   "azurefd",
+		"foo.t-msedge.net":       "azurefd",
+		"app.trafficmanager.net": "azurefd",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_AzureFrontDoor(t *testing.T) {
+	t.Run("x-azure-ref", func(t *testing.T) {
+		h := http.Header{"X-Azure-Ref": []string{"0abc1ZQAAAAB..."}}
+		if got := classifyHeaders(h); got != "azurefd" {
+			t.Errorf("classifyHeaders with x-azure-ref = %q, want azurefd", got)
+		}
+	})
+	t.Run("x-cache-frontdoor", func(t *testing.T) {
+		h := http.Header{"X-Cache": []string{"TCP_HIT from FrontDoor"}}
+		if got := classifyHeaders(h); got != "azurefd" {
+			t.Errorf("classifyHeaders with x-cache frontdoor = %q, want azurefd", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{
+			"X-Azure-Ref": []string{"ref123"},
+			"X-Cache":     []string{"TCP_MISS from FrontDoor"},
+		}
+		sigs := collectHeaderSignals(h)
+		var sawRef, sawCache bool
+		for _, s := range sigs {
+			if s == "header x-azure-ref present (azure front door)" {
+				sawRef = true
+			}
+			if s == "header x-cache mentions frontdoor" {
+				sawCache = true
+			}
+		}
+		if !sawRef || !sawCache {
+			t.Errorf("expected azure front door signals, got %v", sigs)
+		}
+	})
+}

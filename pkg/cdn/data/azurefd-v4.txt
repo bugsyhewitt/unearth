@@ -1,0 +1,20 @@
+# Azure Front Door CDN/WAF IPv4 ranges — captured 2026-05-28
+# Source: Microsoft Azure ServiceTags (AzureFrontDoor.Frontend / AzureFrontDoor.Backend)
+#   https://www.microsoft.com/en-us/download/details.aspx?id=56519
+# Front Door publishes a stable anycast frontend/backend egress set. These are
+# the well-known AzureFrontDoor service-tag ranges; the FrontDoor.Backend tag is
+# the set of egress IPs that connect to origins, the Frontend tag is the public
+# anycast edge that fronts customer hostnames.
+13.107.21.0/24
+13.107.42.0/24
+13.107.246.0/24
+13.107.213.0/24
+150.171.22.0/24
+150.171.23.0/24
+150.171.32.0/22
+13.107.219.0/24
+13.107.227.0/24
+13.107.236.0/24
+13.107.238.0/24
+13.107.253.0/24
+204.79.197.0/24

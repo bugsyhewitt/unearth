@@ -458,11 +458,22 @@ The CDN origin-discovery space in mid-2026:
    host-header injection defeats origin protection on ~40% of Fortune 100
    companies. The ASN sweep technique directly operationalizes this finding.
 
-3. **Akamai** and **Imperva (Incapsula)** were the critical CDN detection gaps
-   in unearth's filter — both now closed. The CDN registry covers Cloudflare,
-   CloudFront, Fastly, Sucuri, Akamai, and Imperva. The remaining notable
-   enterprise front-ends not yet modeled are Azure Front Door, Google Cloud CDN,
-   and StackPath/Highwinds — candidate follow-ups for the next coverage pass.
+3. **Akamai**, **Imperva (Incapsula)**, and **Azure Front Door** were the
+   critical CDN detection gaps in unearth's filter — all now closed. The CDN
+   registry covers Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva, and
+   Azure Front Door. The remaining notable enterprise front-ends not yet modeled
+   are Google Cloud CDN and StackPath/Highwinds — candidate follow-ups for the
+   next coverage pass.
+
+   > Azure Front Door shipped Phase 2, 2026-05-28 in `pkg/cdn/cdn.go`
+   > (`buildAzureFrontDoor`, `isAzureFrontDoorHeaders`) with embedded
+   > `pkg/cdn/data/azurefd-v4.txt` / `azurefd-v6.txt` snapshots sourced from the
+   > Microsoft `AzureFrontDoor` service tag. Detection signals:
+   > `azurefd.net` / `azureedge.net` / `t-msedge.net` / `trafficmanager.net`
+   > CNAME suffixes; the proprietary `X-Azure-Ref` response header; and an
+   > `X-Cache` value mentioning the `FrontDoor` cache node. Self-contained: no
+   > API key, no new dependency, pure data + classification. Mirrors the
+   > `buildAkamai()` / `buildImperva()` pattern exactly.
 
 4. **FOFA, Netlas, Criminal IP** are growing alternatives to Shodan/Censys with
    better APAC coverage and free-tier access. Worth integrating as optional
