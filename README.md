@@ -160,7 +160,36 @@ Subcommands:
   unearth cache stats       Show cache row counts and on-disk path
   unearth cache purge       Delete expired cache entries
   unearth cache clear       Delete all cache entries (prompts for confirmation)
+  unearth calibrate         Suggest technique-weight overrides from run history
+  unearth calibrate --yaml  Emit a weights.yaml block of suggested overrides
+  unearth calibrate reset   Delete all recorded calibration observations
 ```
+
+### Weight calibration
+
+The default technique weights are hand-tuned. As data sources shift over time (CDN range growth, search-engine index changes) those defaults can drift away from how each technique actually performs against *your* target profile. `unearth calibrate` gives you data to tune them.
+
+After every discovery run, unearth records a lightweight observation per technique contribution in its local cache: whether the candidate that technique surfaced was independently **corroborated** by at least one other technique in the same run. There is no external ground truth for "this IP really was the origin", so corroboration is the precision proxy — a technique whose candidates are consistently confirmed by other techniques is contributing real signal; a technique that only ever produces lone hits is the noisy one.
+
+Once you've accumulated some runs, `unearth calibrate` reports each technique's observed precision and a suggested weight:
+
+```sh
+unearth calibrate
+# technique          current  suggest  precision  samples note
+# crtsh                 0.55     0.71       0.78        64
+# host_header           0.70     0.69       0.20         3 low-confidence
+```
+
+The suggested weight is a shrinkage estimate: the observed corroboration rate blended toward the technique's existing weight by a pseudo-count, so a technique with only a handful of observations keeps its default rather than swinging on noise. Suggestions backed by fewer than 20 observations are flagged `low-confidence`.
+
+Emit a ready-to-use overrides file and adopt it via `--weights`:
+
+```sh
+unearth calibrate --yaml > my-weights.yaml   # low-confidence lines are commented out
+unearth --weights my-weights.yaml target.com
+```
+
+Reset the history (e.g. after a CDN data refresh changes coverage) with `unearth calibrate reset`. Calibration recording is best-effort and never affects discovery results; `--no-cache` runs record nothing.
 
 ### Bulk targets and pipeline batching
 

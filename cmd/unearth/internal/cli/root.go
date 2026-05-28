@@ -96,6 +96,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 
 	cmd.AddCommand(newVersionCmd(stdout))
 	cmd.AddCommand(newCacheCmd(stdin, stdout, stderr))
+	cmd.AddCommand(newCalibrateCmd(stdin, stdout, stderr))
 	return cmd
 }
 

@@ -131,8 +131,12 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 	}
 	result.Warnings = append(result.Warnings, warns...)
 
-	// Cache (best-effort).
+	// Cache (best-effort). We keep the concrete *cache.Cache handle (calCache)
+	// as well as the technique-facing interface so that, at the end of the
+	// run, we can record per-technique calibration observations. The handle is
+	// nil when caching is disabled or the cache failed to open.
 	var cstore techniques.CacheStore
+	var calCache *cache.Cache
 	if !opts.NoCache {
 		c, err := cache.Open("")
 		if err != nil {
@@ -140,6 +144,7 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 				fmt.Sprintf("cache: open failed (%s); running without cache", err))
 		} else {
 			cstore = c
+			calCache = c
 			defer func() { _ = c.Close() }()
 		}
 	}
@@ -260,7 +265,43 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 	})
 
 	result.Timestamp = time.Now().UTC()
+
+	// Record per-technique calibration observations (best-effort). For each
+	// technique contribution to a candidate, the observation is "corroborated"
+	// when that candidate was found by more than one technique in this run.
+	// This corroboration history is what `unearth calibrate` later turns into
+	// per-technique precision estimates and weight suggestions. A recording
+	// failure is non-fatal — calibration is a convenience, not part of the
+	// discovery contract.
+	if calCache != nil {
+		if obs := buildObservations(result.Candidates); len(obs) > 0 {
+			if err := calCache.RecordObservations(obs); err != nil {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("calibration: recording observations failed: %s", err))
+			}
+		}
+	}
+
 	return result, nil
+}
+
+// buildObservations converts a run's scored candidates into per-technique
+// calibration observations. Each (technique, candidate) contribution becomes
+// one observation; it is marked corroborated when the candidate was found by
+// more than one technique. The corroboration signal is the closest proxy for
+// precision available without external ground truth.
+func buildObservations(candidates []ScoredIP) []cache.Observation {
+	var obs []cache.Observation
+	for _, c := range candidates {
+		corroborated := c.Corroboration > 1
+		for _, h := range c.Techniques {
+			obs = append(obs, cache.Observation{
+				Technique:    h.Name,
+				Corroborated: corroborated,
+			})
+		}
+	}
+	return obs
 }
 
 // techResult bundles one technique's outcome for engine-internal use.

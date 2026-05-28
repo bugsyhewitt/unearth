@@ -101,6 +101,9 @@ CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache(expires_at);
 	if _, err := c.db.Exec(schema); err != nil {
 		return fmt.Errorf("cache: creating schema: %w", err)
 	}
+	if err := c.migrateCalibration(); err != nil {
+		return err
+	}
 	return nil
 }
 

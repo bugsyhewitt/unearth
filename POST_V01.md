@@ -336,7 +336,23 @@ runs all techniques, outputs, then reads next target.
 
 ---
 
-## P3 — Weight auto-calibration from historical results
+## P3 — Weight auto-calibration from historical results — ✅ IMPLEMENTED (Phase 2, 2026-05-28)
+
+> Shipped across `pkg/cache/calibration.go` (an `observations` table plus
+> `RecordObservations`, `CalibrationStats`, `ResetObservations`,
+> `ObservationCount`), `pkg/rank/calibrate.go` (the pure shrinkage estimator
+> `Calibrate`), an engine hook in `pkg/unearth/unearth.go` (`buildObservations`
+> records one observation per technique contribution after each run, marked
+> corroborated when the candidate was found by >1 technique), and the
+> `unearth calibrate` CLI subcommand (`cmd/unearth/internal/cli/calibrate.go`)
+> with `--yaml` output and a `calibrate reset` child. Because there is no
+> external ground truth, the precision proxy is corroboration: how often a
+> technique's candidate was independently confirmed by another technique in the
+> same run. The suggested weight is a Beta-prior posterior mean (observed rate
+> shrunk toward the technique's current weight by a pseudo-count of 20), so
+> small samples keep their defaults and are flagged `low-confidence`.
+> Recording is best-effort and never affects discovery; `--no-cache` runs
+> record nothing.
 
 **What:** Track technique hit rates (true positives vs. total candidates
 returned) in the local SQLite cache. After N runs, surface per-technique
