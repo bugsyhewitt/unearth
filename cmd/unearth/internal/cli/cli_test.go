@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -262,6 +263,118 @@ func TestRoot_AggressiveImpliesAggressiveTier(t *testing.T) {
 	_, _, _ = captured(t, "--aggressive", "example.test")
 	if seenTier != techniques.TierAggressive {
 		t.Errorf("tier: %v", seenTier)
+	}
+}
+
+func TestRoot_PipelineBatchInvalid(t *testing.T) {
+	code, _, stderr := captured(t, "--pipeline-batch", "0", "example.test")
+	if code != exitUsageError {
+		t.Errorf("exit code: want %d, got %d", exitUsageError, code)
+	}
+	if !strings.Contains(stderr, "pipeline-batch") {
+		t.Errorf("stderr: %q", stderr)
+	}
+}
+
+// TestRoot_PipelineBatchOrderedOutput verifies that concurrent discovery
+// (pipeline-batch > 1) still emits results in input order, even when later
+// targets finish first. The fake runner sleeps an amount inversely
+// proportional to input order so the last target completes first.
+func TestRoot_PipelineBatchOrderedOutput(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	if err := os.WriteFile(path, []byte("a.test\nb.test\nc.test\nd.test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	order := map[string]time.Duration{
+		"a.test": 40 * time.Millisecond,
+		"b.test": 30 * time.Millisecond,
+		"c.test": 20 * time.Millisecond,
+		"d.test": 10 * time.Millisecond,
+	}
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		time.Sleep(order[target])
+		return fakeResult(target, "203.0.113.9"), nil
+	})
+	code, stdout, _ := captured(t, "-l", path, "--pipeline-batch", "4")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("want 4 jsonl lines, got %d: %q", len(lines), stdout)
+	}
+	want := []string{"a.test", "b.test", "c.test", "d.test"}
+	for i, line := range lines {
+		var row struct {
+			Target string `json:"target"`
+		}
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatalf("parse line %d: %v", i, err)
+		}
+		if row.Target != want[i] {
+			t.Errorf("line %d: want target %q, got %q", i, want[i], row.Target)
+		}
+	}
+}
+
+// TestRoot_PipelineBatchRunsAllTargets confirms every target is dispatched
+// exactly once under the concurrent pool and that mixed success/failure is
+// handled — failures go to stderr, successes to stdout, exit stays 0.
+func TestRoot_PipelineBatchRunsAllTargets(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	if err := os.WriteFile(path, []byte("ok1.test\nbad.test\nok2.test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	seen := map[string]int{}
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		mu.Lock()
+		seen[target]++
+		mu.Unlock()
+		if target == "bad.test" {
+			return nil, errUsageNot{"boom"}
+		}
+		return fakeResult(target, "203.0.113.7"), nil
+	})
+	code, stdout, stderr := captured(t, "-l", path, "--pipeline-batch", "3")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	for _, target := range []string{"ok1.test", "bad.test", "ok2.test"} {
+		if seen[target] != 1 {
+			t.Errorf("target %q dispatched %d times, want 1", target, seen[target])
+		}
+	}
+	if !strings.Contains(stdout, "ok1.test") || !strings.Contains(stdout, "ok2.test") {
+		t.Errorf("stdout missing successful targets: %q", stdout)
+	}
+	if strings.Contains(stdout, "bad.test") {
+		t.Errorf("failed target should not appear in stdout: %q", stdout)
+	}
+	if !strings.Contains(stderr, "bad.test") {
+		t.Errorf("failed target should be reported to stderr: %q", stderr)
+	}
+}
+
+// TestRoot_PipelineBatchClampsToTargetCount ensures a batch larger than the
+// target count does not deadlock or drop work.
+func TestRoot_PipelineBatchClampsToTargetCount(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	if err := os.WriteFile(path, []byte("only.test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResult(target, "203.0.113.1"), nil
+	})
+	code, stdout, _ := captured(t, "-l", path, "--pipeline-batch", "16")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if !strings.Contains(stdout, "only.test") {
+		t.Errorf("stdout: %q", stdout)
 	}
 }
 

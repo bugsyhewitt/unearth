@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,22 +22,23 @@ import (
 // one struct keeps the command definition uncluttered and gives tests one
 // place to inspect resolved values.
 type rootFlags struct {
-	list       string
-	active     bool
-	aggressive bool
-	maxCensys  int
-	maxShodan  int
-	maxST      int
-	noCache    bool
-	refresh    bool
-	output     string
-	top        int
-	concurrent int
-	timeout    time.Duration
-	verbose    bool
-	silent     bool
-	weights    string
-	emailFile  string
+	list          string
+	active        bool
+	aggressive    bool
+	maxCensys     int
+	maxShodan     int
+	maxST         int
+	noCache       bool
+	refresh       bool
+	output        string
+	top           int
+	concurrent    int
+	timeout       time.Duration
+	verbose       bool
+	silent        bool
+	weights       string
+	emailFile     string
+	pipelineBatch int
 }
 
 // runner is the indirection through which the root command invokes
@@ -90,6 +92,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().BoolVar(&f.silent, "silent", false, "Suppress all non-result output")
 	cmd.Flags().StringVar(&f.weights, "weights", "", "Path to a custom weights YAML")
 	cmd.Flags().StringVar(&f.emailFile, "email-file", "", "Path to a raw email (.eml) whose Received: headers are mined for origin IPs")
+	cmd.Flags().IntVar(&f.pipelineBatch, "pipeline-batch", 1, "Number of targets to discover concurrently (1 = sequential; output stays in input order)")
 
 	cmd.AddCommand(newVersionCmd(stdout))
 	cmd.AddCommand(newCacheCmd(stdin, stdout, stderr))
@@ -104,6 +107,9 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 	case "jsonl", "json", "table":
 	default:
 		return errUsage("invalid --output: must be jsonl, json, or table")
+	}
+	if f.pipelineBatch < 1 {
+		return errUsage("--pipeline-batch must be >= 1")
 	}
 
 	targets, sourceNotice, err := resolveTargets(f.list, posArgs, stdin)
@@ -144,27 +150,9 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		return err
 	}
 
-	results := make([]*unearth.Result, 0, len(targets))
-	var failures int
-	for _, target := range targets {
-		if ctx.Err() != nil {
-			break
-		}
-		if f.verbose {
-			_, _ = fmt.Fprintf(stderr, "unearth: discovering %s\n", target)
-		}
-		res, err := discoverRunner(ctx, target, opts)
-		if err != nil {
-			failures++
-			if !f.silent {
-				_, _ = fmt.Fprintf(stderr, "unearth: %s: %v\n", target, err)
-			}
-			continue
-		}
-		results = append(results, res)
-		if err := sink.write(stdout, stderr, res, f); err != nil {
-			return err
-		}
+	results, failures, err := processTargets(ctx, targets, opts, f, sink, stdout, stderr)
+	if err != nil {
+		return err
 	}
 	if err := sink.flush(stdout, results); err != nil {
 		return err
@@ -174,6 +162,118 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		return errors.New("every target failed to run")
 	}
 	return nil
+}
+
+// targetOutcome carries the result (or error) for one target alongside its
+// position in the input list, so concurrent workers can report back and the
+// writer can emit them in deterministic input order.
+type targetOutcome struct {
+	index int
+	res   *unearth.Result
+	err   error
+}
+
+// processTargets runs discovery over every target and streams each result
+// through the sink. When f.pipelineBatch > 1, discovery runs concurrently
+// across a bounded worker pool, but results are always written in input
+// order so the streaming output contract (jsonl/table per target) is
+// preserved deterministically regardless of which target finishes first.
+func processTargets(
+	ctx context.Context,
+	targets []string,
+	opts unearth.Options,
+	f *rootFlags,
+	sink sink,
+	stdout, stderr io.Writer,
+) (results []*unearth.Result, failures int, err error) {
+	results = make([]*unearth.Result, 0, len(targets))
+
+	emit := func(o targetOutcome) error {
+		if o.err != nil {
+			failures++
+			if !f.silent {
+				_, _ = fmt.Fprintf(stderr, "unearth: %s: %v\n", targets[o.index], o.err)
+			}
+			return nil
+		}
+		results = append(results, o.res)
+		return sink.write(stdout, stderr, o.res, f)
+	}
+
+	if f.pipelineBatch <= 1 {
+		for i, target := range targets {
+			if ctx.Err() != nil {
+				break
+			}
+			if f.verbose {
+				_, _ = fmt.Fprintf(stderr, "unearth: discovering %s\n", target)
+			}
+			res, runErr := discoverRunner(ctx, target, opts)
+			if werr := emit(targetOutcome{index: i, res: res, err: runErr}); werr != nil {
+				return results, failures, werr
+			}
+		}
+		return results, failures, nil
+	}
+
+	// Concurrent pipeline mode: a fixed pool of workers pulls target
+	// indices off a channel and pushes outcomes into a slot array. A single
+	// writer goroutine drains slots in input order so output stays
+	// deterministic and sink.write is never called concurrently.
+	outcomes := runPipeline(ctx, targets, opts, f, stderr)
+	for _, o := range outcomes {
+		if werr := emit(o); werr != nil {
+			return results, failures, werr
+		}
+	}
+	return results, failures, nil
+}
+
+// runPipeline discovers targets concurrently with a worker pool of size
+// f.pipelineBatch and returns the outcomes ordered by input index. It does
+// not touch the sink — ordering and writing are the caller's job — so all
+// stdout writes remain single-threaded.
+func runPipeline(
+	ctx context.Context,
+	targets []string,
+	opts unearth.Options,
+	f *rootFlags,
+	stderr io.Writer,
+) []targetOutcome {
+	workers := f.pipelineBatch
+	if workers > len(targets) {
+		workers = len(targets)
+	}
+
+	outcomes := make([]targetOutcome, len(targets))
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+
+	for w := 0; w < workers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				if ctx.Err() != nil {
+					outcomes[i] = targetOutcome{index: i, err: ctx.Err()}
+					continue
+				}
+				if f.verbose {
+					_, _ = fmt.Fprintf(stderr, "unearth: discovering %s\n", targets[i])
+				}
+				res, runErr := discoverRunner(ctx, targets[i], opts)
+				outcomes[i] = targetOutcome{index: i, res: res, err: runErr}
+			}
+		}()
+	}
+
+	for i := range targets {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+
+	return outcomes
 }
 
 // resolveTargets implements the precedence in §C.3.

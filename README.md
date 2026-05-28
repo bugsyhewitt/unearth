@@ -36,6 +36,9 @@ unearth -o table example.com
 
 # Pipeline: enumerate targets with subfinder, discover origins, probe with httpx
 subfinder -d target.com -silent | unearth -l - | jq -r '.candidates[].candidate_ip' | httpx
+
+# Large target list: discover up to 8 targets concurrently (output stays in input order)
+subfinder -d target.com -silent | unearth -l - --pipeline-batch 8 | jq -r '.candidate_ip' | httpx
 ```
 
 ---
@@ -148,6 +151,7 @@ Flags:
       --max-st int          SecurityTrails query cap per target (default 20)
       --weights string      Path to technique-weight overrides YAML
       --email-file string   Path to a raw email (.eml); its Received: headers are mined for origin IPs
+      --pipeline-batch int  Targets to discover concurrently in list/stdin mode (default 1 = sequential)
       --verbose             Print per-technique results to stderr
       --silent              Suppress all stderr output
 
@@ -157,6 +161,19 @@ Subcommands:
   unearth cache purge       Delete expired cache entries
   unearth cache clear       Delete all cache entries (prompts for confirmation)
 ```
+
+### Bulk targets and pipeline batching
+
+When you feed `unearth` a list of targets (via `-l <file>` or stdin), it processes them one at a time by default. For large programs with hundreds of subdomains this is slow, even though each individual run is already concurrent at the technique level.
+
+`--pipeline-batch <n>` lifts that concurrency to the target level: up to `n` targets are discovered at the same time. Results are still emitted **in input order**, so streaming output (`jsonl`, `table`) and the accumulated `json` array remain deterministic regardless of which target finishes first:
+
+```sh
+# Discover up to 8 targets concurrently; output order matches input order
+unearth -l subdomains.txt --pipeline-batch 8 -o jsonl
+```
+
+`--pipeline-batch 1` (the default) preserves the original strictly-sequential behavior. The per-target `--concurrency` flag (technique-level parallelism) is independent and composes with `--pipeline-batch`.
 
 ---
 
