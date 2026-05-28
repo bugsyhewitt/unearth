@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `split_dns` discovery technique (passive tier, weight 0.80). Detects partial-proxy / split-DNS misconfigurations: resolves the apex and `www` to determine whether a CDN-fronted front door exists, then flags non-CDN IPs on the apex or on commonly un-proxied siblings (`mail`, `smtp`, `ftp`, `direct`, `origin`, `backend`, `cpanel`, `webmail`) as high-confidence origin candidates. Purely DNS-based — no target contact, no API key. Yields no signal when no CDN front door is present.
 - `favicon_hash` discovery technique (active tier, weight 0.75). Fetches the target's `/favicon.ico` (HTTPS with HTTP fallback), computes its MurmurHash3 using Shodan's convention — `mmh3(base64.encodebytes(favicon_bytes))` as a signed int32 — and queries Shodan (`http.favicon.hash`) and/or Censys (`services.http.response.favicons.hashes`) for hosts sharing that favicon. Either API key alone is sufficient; with neither configured the technique skips gracefully. Favicon hashes survive cert rotations and IP moves, complementing the cert-pivot techniques.
 
 ## [1.0.0] — 2026-05-17

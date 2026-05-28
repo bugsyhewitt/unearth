@@ -67,6 +67,18 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `split_dns`
+
+**Tier:** Passive | **Weight:** 0.80 | **API key:** None
+
+**What it does:** Detects partial-proxy ("split-DNS") misconfigurations. Many organizations route only `www` through a CDN while leaving the apex — or a mail/admin subdomain — in DNS-only mode pointing straight at the origin. The technique resolves the apex and `www` to establish whether a CDN-fronted "front door" exists, then compares it against the apex and a short list of commonly un-proxied siblings (`mail`, `smtp`, `ftp`, `direct`, `origin`, `backend`, `cpanel`, `webmail`). When the front door is CDN-fronted but a sibling resolves to a non-CDN IP, that IP is surfaced as a high-confidence origin candidate. It is purely DNS-based: no contact with the target, no API key, at most one lookup per probed label.
+
+**Why the high weight:** When this signal fires it is almost always the real origin — a non-CDN IP sitting next to a CDN-fronted front door is rarely a coincidence. It is consistently one of the most productive keyless techniques in bug-bounty reports.
+
+**Limitations:** Produces nothing when no CDN front door is present (a fully direct or fully fronted domain yields no signal). Limited to the apex plus the built-in sibling list; it does not perform general subdomain enumeration (`subdomain_enum` covers that, and the engine de-duplicates overlapping candidates).
+
+---
+
 ### `censys_cert`
 
 **Tier:** Passive | **Weight:** 0.90 | **API key:** `CENSYS_PLATFORM_PAT`

@@ -64,6 +64,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `crtsh` | Passive | No | 0.55 | Certificate Transparency enumeration via crt.sh (with retry and Cert Spotter fallback) |
 | `spf_mx` | Passive | No | 0.50 | SPF and MX record analysis — mail infrastructure often reveals origin IPs |
 | `subdomain_enum` | Passive | No | 0.35 | Wordlist subdomain brute-force to find exposing subdomains |
+| `split_dns` | Passive | No | 0.80 | Split-DNS / partial-proxy detection — flags non-CDN apex or mail/admin siblings when the www front door is CDN-fronted |
 | `censys_cert` | Passive | Yes — `CENSYS_PLATFORM_PAT` | 0.90 | Censys Platform certificate-fingerprint search |
 | `dns_history` | Passive | Yes — `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY` | 0.65 | Historical DNS A/AAAA records |
 | `host_header` | Active | No | 0.85 | HTTP host-header bypass: connects to candidate IPs with `Host: target` |
@@ -80,7 +81,7 @@ See [docs/techniques.md](docs/techniques.md) for detailed descriptions of each t
 
 ## API keys
 
-`unearth` is fully usable with zero API keys. The keyless passive techniques (`ct_fingerprint`, `crtsh`, `spf_mx`, `subdomain_enum`) cover the common case. API keys extend coverage with higher-confidence keyed sources.
+`unearth` is fully usable with zero API keys. The keyless passive techniques (`ct_fingerprint`, `crtsh`, `spf_mx`, `subdomain_enum`, `split_dns`) cover the common case. API keys extend coverage with higher-confidence keyed sources.
 
 Set keys in your environment before running:
 
