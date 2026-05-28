@@ -255,8 +255,10 @@ The following CDNs are detected (IP-range matching + header and DNS signals):
 - **CloudFront (AWS)** — first-party `ip-ranges.json` (`CLOUDFRONT` service), `x-amz-cf-id` header
 - **Fastly** — first-party `public-ip-list` API, `x-fastly-request-id` header
 - **Sucuri** — published WAF CIDR ranges, `x-sucuri-cache` header
+- **Akamai** — published ASN ranges (AS20940 et al.), `edgesuite.net`/`edgekey.net`/`akamaized.net` CNAME signals, `x-check-cacheable`/`x-akamai-transformed` headers
+- **Imperva (Incapsula)** — published edge ranges (AS19551), `incapdns.net`/`incapsula.com` CNAME signals, `x-iinfo` header, `x-cdn: incapsula`, and `incap_ses`/`visid_incap` session cookies
 
-Ranges are embedded at build time (snapshot date 2026-05-17) and can be refreshed via `pkg/cdn.Refresh()`. Akamai is deferred to v1.1 — no authoritative machine-readable range list is available.
+Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 
 ---
 

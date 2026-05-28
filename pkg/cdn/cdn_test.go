@@ -334,11 +334,11 @@ func TestIsCDNIP_Akamai_IPv6(t *testing.T) {
 
 func TestProviderByDNS_Akamai(t *testing.T) {
 	cases := map[string]string{
-		"foo.edgesuite.net":            "akamai",
-		"bar.edgekey.net":              "akamai",
-		"example.akamaized.net":        "akamai",
-		"cdn.akamaitechnologies.com":   "akamai",
-		"edge.akamai.net":              "akamai",
+		"foo.edgesuite.net":          "akamai",
+		"bar.edgekey.net":            "akamai",
+		"example.akamaized.net":      "akamai",
+		"cdn.akamaitechnologies.com": "akamai",
+		"edge.akamai.net":            "akamai",
 	}
 	for host, want := range cases {
 		got, _ := providerByDNS(host)
@@ -359,6 +359,89 @@ func TestClassifyHeaders_Akamai(t *testing.T) {
 		h := http.Header{"X-Akamai-Transformed": []string{"9 - 0 pmb=mRUM,1"}}
 		if got := classifyHeaders(h); got != "akamai" {
 			t.Errorf("classifyHeaders with x-akamai-transformed = %q, want akamai", got)
+		}
+	})
+}
+
+func TestIsCDNIP_Imperva(t *testing.T) {
+	// 199.83.128.1 is inside 199.83.128.0/21, an Imperva AS19551 range.
+	addr := netip.MustParseAddr("199.83.128.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("199.83.128.1 should be Imperva CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "imperva" {
+		t.Errorf("ProviderForIP(199.83.128.1) = %q, want imperva", got)
+	}
+}
+
+func TestIsCDNIP_Imperva_IPv6(t *testing.T) {
+	// 2a02:e980::1 is inside 2a02:e980::/29, an Imperva IPv6 range.
+	addr := netip.MustParseAddr("2a02:e980::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2a02:e980::1 should be Imperva CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "imperva" {
+		t.Errorf("ProviderForIP(2a02:e980::1) = %q, want imperva", got)
+	}
+}
+
+func TestProviderByDNS_Imperva(t *testing.T) {
+	cases := map[string]string{
+		"site-12345.incapdns.net": "imperva",
+		"foo.incapdns.com":        "imperva",
+		"portal.incapsula.com":    "imperva",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_Imperva(t *testing.T) {
+	t.Run("x-iinfo", func(t *testing.T) {
+		h := http.Header{"X-Iinfo": []string{"7-12345678-12345679 NNNN CT(0 0 0) RT(...)"}}
+		if got := classifyHeaders(h); got != "imperva" {
+			t.Errorf("classifyHeaders with x-iinfo = %q, want imperva", got)
+		}
+	})
+	t.Run("x-cdn-incapsula", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "Incapsula")
+		if got := classifyHeaders(h); got != "imperva" {
+			t.Errorf("classifyHeaders with x-cdn incapsula = %q, want imperva", got)
+		}
+	})
+	t.Run("incap-session-cookie", func(t *testing.T) {
+		h := http.Header{"Set-Cookie": []string{"incap_ses_123_456=abcdef; path=/"}}
+		if got := classifyHeaders(h); got != "imperva" {
+			t.Errorf("classifyHeaders with incap_ses cookie = %q, want imperva", got)
+		}
+	})
+	t.Run("visid-cookie", func(t *testing.T) {
+		h := http.Header{"Set-Cookie": []string{"visid_incap_456=xyz; path=/; HttpOnly"}}
+		if got := classifyHeaders(h); got != "imperva" {
+			t.Errorf("classifyHeaders with visid_incap cookie = %q, want imperva", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{
+			"X-Iinfo":    []string{"7-1-2 NNNN"},
+			"Set-Cookie": []string{"incap_ses_1_2=foo"},
+		}
+		sigs := collectHeaderSignals(h)
+		var sawIinfo, sawCookie bool
+		for _, s := range sigs {
+			if s == "header x-iinfo present (imperva)" {
+				sawIinfo = true
+			}
+			if s == "incapsula session cookie present" {
+				sawCookie = true
+			}
+		}
+		if !sawIinfo || !sawCookie {
+			t.Errorf("expected imperva signals, got %v", sigs)
 		}
 	})
 }

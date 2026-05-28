@@ -111,7 +111,13 @@ filtering out known CDN ranges.
 
 ---
 
-## P1 — Akamai CDN detection (CDN coverage gap)
+## P1 — Akamai CDN detection (CDN coverage gap) — ✅ IMPLEMENTED (Phase 2)
+
+> Shipped in `pkg/cdn/cdn.go` (`buildAkamai`) with embedded
+> `pkg/cdn/data/akamai-v4.txt` / `akamai-v6.txt` snapshots, `edgesuite.net` /
+> `edgekey.net` / `akamaized.net` / `akamaitechnologies.com` / `akamai.net`
+> CNAME hints, and `X-Check-Cacheable` / `X-Akamai-Transformed` header
+> classification.
 
 **What:** Add Akamai to the CDN provider registry (`pkg/cdn/cdn.go`). Currently
 the codebase covers Cloudflare, CloudFront, Fastly, and Sucuri. Akamai is the
@@ -143,6 +149,37 @@ are returned as origin candidates instead of being filtered.
 **References:**
 - https://www.aecyberpro.com/blog/general/2024-07-11-Finding-CDN-Origin-Hosts/
 - https://www.akamai.com/blog/security-research/what-you-should-know-about-breakingwaf
+
+---
+
+## P1 — Imperva (Incapsula) CDN detection (CDN coverage gap) — ✅ IMPLEMENTED (Phase 2, 2026-05-28)
+
+> Shipped in `pkg/cdn/cdn.go` (`buildImperva`, `isImpervaHeaders`) with embedded
+> `pkg/cdn/data/imperva-v4.txt` / `imperva-v6.txt` snapshots sourced from
+> Imperva's published edge ranges (primary ASN AS19551). Detection signals:
+> `incapdns.net` / `incapdns.com` / `incapsula.com` CNAME suffixes; the
+> proprietary `X-Iinfo` response header; `X-CDN: Incapsula`; and the
+> `incap_ses` / `visid_incap` session cookies Incapsula sets on every fronted
+> response. Mirrors the `buildAkamai()` pattern exactly — registered in `init()`
+> and wired into `classifyHeaders` / `collectHeaderSignals`.
+
+**What:** Add Imperva/Incapsula to the CDN provider registry. Imperva is a
+top-tier enterprise WAF/CDN; before this change its edge IPs were surfaced as
+origin candidates by certificate- and subdomain-based techniques, polluting the
+candidate list for any Imperva-fronted target.
+
+**Why P1:**
+- Imperva (Incapsula) is one of the most common enterprise WAF/CDN front-ends.
+  Its absence from the CDN filter caused false-positive origin candidates —
+  the same quality issue Akamai coverage fixed.
+- Incapsula leaves an unusually distinctive footprint (`X-Iinfo` header,
+  `incap_ses` cookies, `*.incapdns.net` CNAMEs), so detection is high-confidence
+  and low-false-positive.
+- Self-contained: no API key, no new dependency, pure data + classification.
+
+**References:**
+- https://www.imperva.com/ (published edge IP integration endpoint)
+- https://docs.imperva.com/ (Incapsula DNS / header signatures)
 
 ---
 
@@ -421,9 +458,11 @@ The CDN origin-discovery space in mid-2026:
    host-header injection defeats origin protection on ~40% of Fortune 100
    companies. The ASN sweep technique directly operationalizes this finding.
 
-3. **Akamai** remains the critical CDN detection gap in unearth's filter. Without
-   it, Akamai edge IPs pollute results. This is a blocking quality issue for any
-   target protected by Akamai.
+3. **Akamai** and **Imperva (Incapsula)** were the critical CDN detection gaps
+   in unearth's filter — both now closed. The CDN registry covers Cloudflare,
+   CloudFront, Fastly, Sucuri, Akamai, and Imperva. The remaining notable
+   enterprise front-ends not yet modeled are Azure Front Door, Google Cloud CDN,
+   and StackPath/Highwinds — candidate follow-ups for the next coverage pass.
 
 4. **FOFA, Netlas, Criminal IP** are growing alternatives to Shodan/Censys with
    better APAC coverage and free-tier access. Worth integrating as optional

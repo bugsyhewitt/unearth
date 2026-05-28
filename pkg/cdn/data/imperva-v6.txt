@@ -1,0 +1,3 @@
+# Imperva (Incapsula) WAF/CDN IPv6 ranges — captured 2026-05-28
+# Source: https://my.imperva.com/api/integration/v1/ips
+2a02:e980::/29

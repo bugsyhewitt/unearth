@@ -4,9 +4,10 @@
 // status to the caller; techniques drop candidates that are still inside a
 // CDN, because they cannot be the real origin.
 //
-// CDN coverage in v1.0: Cloudflare, CloudFront, Fastly, and Sucuri.
-// The code is structured so adding further providers is a matter of dropping
-// in a Provider value with detection markers and an embedded range snapshot.
+// CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, and Imperva
+// (Incapsula). The code is structured so adding further providers is a matter
+// of dropping in a Provider value with detection markers and an embedded range
+// snapshot.
 package cdn
 
 import (
@@ -58,6 +59,12 @@ var akamaiV4Raw []byte
 
 //go:embed data/akamai-v6.txt
 var akamaiV6Raw []byte
+
+//go:embed data/imperva-v4.txt
+var impervaV4Raw []byte
+
+//go:embed data/imperva-v6.txt
+var impervaV6Raw []byte
 
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
@@ -112,6 +119,12 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Akamai ranges: %v", err))
 	}
 	providers = append(providers, akamai)
+
+	imperva, err := buildImperva()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Imperva ranges: %v", err))
+	}
+	providers = append(providers, imperva)
 }
 
 func buildFastly() (*Provider, error) {
@@ -166,6 +179,27 @@ func buildAkamai() (*Provider, error) {
 			".akamaized.net",
 			".akamaitechnologies.com",
 			".akamai.net",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildImperva() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(impervaV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("imperva v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(impervaV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("imperva v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "imperva",
+		dnsHints: []string{
+			".incapdns.net",
+			".incapdns.com",
+			".incapsula.com",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -425,7 +459,30 @@ func classifyHeaders(h http.Header) string {
 	if h.Get("X-Check-Cacheable") != "" || h.Get("X-Akamai-Transformed") != "" {
 		return "akamai"
 	}
+	if isImpervaHeaders(h) {
+		return "imperva"
+	}
 	return ""
+}
+
+// isImpervaHeaders reports whether the response headers carry an Incapsula /
+// Imperva signature: the proprietary X-Iinfo header, an X-CDN: Incapsula
+// marker, or the incap_ses / visid_incap session cookies Incapsula sets on
+// every fronted response.
+func isImpervaHeaders(h http.Header) bool {
+	if h.Get("X-Iinfo") != "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "incapsula") {
+		return true
+	}
+	for _, c := range h.Values("Set-Cookie") {
+		lc := strings.ToLower(c)
+		if strings.HasPrefix(lc, "incap_ses") || strings.HasPrefix(lc, "visid_incap") {
+			return true
+		}
+	}
+	return false
 }
 
 func collectHeaderSignals(h http.Header) []string {
@@ -459,6 +516,19 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if h.Get("X-Akamai-Transformed") != "" {
 		out = append(out, "header x-akamai-transformed present")
+	}
+	if h.Get("X-Iinfo") != "" {
+		out = append(out, "header x-iinfo present (imperva)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "incapsula") {
+		out = append(out, "header x-cdn mentions incapsula")
+	}
+	for _, c := range h.Values("Set-Cookie") {
+		lc := strings.ToLower(c)
+		if strings.HasPrefix(lc, "incap_ses") || strings.HasPrefix(lc, "visid_incap") {
+			out = append(out, "incapsula session cookie present")
+			break
+		}
 	}
 	return out
 }
