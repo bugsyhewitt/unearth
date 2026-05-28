@@ -258,6 +258,7 @@ The following CDNs are detected (IP-range matching + header and DNS signals):
 - **Akamai** — published ASN ranges (AS20940 et al.), `edgesuite.net`/`edgekey.net`/`akamaized.net` CNAME signals, `x-check-cacheable`/`x-akamai-transformed` headers
 - **Imperva (Incapsula)** — published edge ranges (AS19551), `incapdns.net`/`incapsula.com` CNAME signals, `x-iinfo` header, `x-cdn: incapsula`, and `incap_ses`/`visid_incap` session cookies
 - **Azure Front Door** — published service-tag anycast ranges (`AzureFrontDoor`), `azurefd.net`/`azureedge.net`/`t-msedge.net`/`trafficmanager.net` CNAME signals, `x-azure-ref` header, and `x-cache: ... from FrontDoor`
+- **Google Cloud CDN** — published `goog`/`cloud.json` ranges plus the GFE load-balancer blocks (`130.211.0.0/22`, `35.191.0.0/16`), `googlehosted.com`/`googleusercontent.com`/`storage.googleapis.com` CNAME signals, `server: Google Frontend`, `via: 1.1 google`, and `x-goog-*` headers
 
 Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 

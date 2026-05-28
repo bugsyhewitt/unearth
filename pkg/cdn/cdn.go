@@ -5,9 +5,9 @@
 // CDN, because they cannot be the real origin.
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
-// (Incapsula), and Azure Front Door. The code is structured so adding further
-// providers is a matter of dropping in a Provider value with detection markers
-// and an embedded range snapshot.
+// (Incapsula), Azure Front Door, and Google Cloud CDN. The code is structured
+// so adding further providers is a matter of dropping in a Provider value with
+// detection markers and an embedded range snapshot.
 package cdn
 
 import (
@@ -71,6 +71,12 @@ var azureFDV4Raw []byte
 
 //go:embed data/azurefd-v6.txt
 var azureFDV6Raw []byte
+
+//go:embed data/googlecdn-v4.txt
+var googleCDNV4Raw []byte
+
+//go:embed data/googlecdn-v6.txt
+var googleCDNV6Raw []byte
 
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
@@ -137,6 +143,12 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Azure Front Door ranges: %v", err))
 	}
 	providers = append(providers, azurefd)
+
+	googlecdn, err := buildGoogleCDN()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Google Cloud CDN ranges: %v", err))
+	}
+	providers = append(providers, googlecdn)
 }
 
 func buildFastly() (*Provider, error) {
@@ -234,6 +246,28 @@ func buildAzureFrontDoor() (*Provider, error) {
 			".azureedge.net",
 			".t-msedge.net",
 			".trafficmanager.net",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildGoogleCDN() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(googleCDNV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("googlecdn v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(googleCDNV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("googlecdn v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "googlecdn",
+		dnsHints: []string{
+			".googlehosted.com",
+			".googleusercontent.com",
+			".storage.googleapis.com",
+			".l.google.com",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -499,7 +533,29 @@ func classifyHeaders(h http.Header) string {
 	if isAzureFrontDoorHeaders(h) {
 		return "azurefd"
 	}
+	if isGoogleCDNHeaders(h) {
+		return "googlecdn"
+	}
 	return ""
+}
+
+// isGoogleCDNHeaders reports whether the response headers carry a Google Front
+// End / Google Cloud CDN signature. Google's edge stamps "Server: Google
+// Frontend" (or the legacy "gws") on GFE responses, and Cloud CDN adds
+// "Via: 1.1 google" on every cached/proxied response. Either marker, or the
+// X-Goog-* family of headers Cloud CDN emits, identifies the provider.
+func isGoogleCDNHeaders(h http.Header) bool {
+	server := strings.ToLower(h.Get("Server"))
+	if server == "google frontend" || server == "gws" || strings.HasPrefix(server, "gfe") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("Via")), "google") {
+		return true
+	}
+	if h.Get("X-Goog-Hash") != "" || h.Get("X-Goog-Generation") != "" {
+		return true
+	}
+	return false
 }
 
 // isAzureFrontDoorHeaders reports whether the response headers carry an Azure
@@ -586,6 +642,15 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-Cache")), "frontdoor") {
 		out = append(out, "header x-cache mentions frontdoor")
+	}
+	if server := strings.ToLower(h.Get("Server")); server == "google frontend" || server == "gws" || strings.HasPrefix(server, "gfe") {
+		out = append(out, "header server: google frontend (google cloud cdn)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Via")), "google") {
+		out = append(out, "header via mentions google (google cloud cdn)")
+	}
+	if h.Get("X-Goog-Hash") != "" || h.Get("X-Goog-Generation") != "" {
+		out = append(out, "header x-goog-* present (google cloud cdn)")
 	}
 	return out
 }

@@ -1,0 +1,24 @@
+# Google Cloud CDN / Google Front End (GFE) IPv4 ranges — captured 2026-05-28
+# Source: Google Cloud published goog-prefixes / cloud.json plus the well-known
+#   Global Front End (GFE) load-balancer ranges used by Cloud CDN and the
+#   external HTTP(S) load balancer.
+#   https://www.gstatic.com/ipranges/cloud.json
+#   https://www.gstatic.com/ipranges/goog.json
+# Cloud CDN sits behind the Google global external HTTP(S) load balancer, which
+# is fronted by GFE. The 130.211.0.0/22 and 35.191.0.0/16 ranges are the
+# documented GFE health-check / proxy ranges; 34.x and 35.x anycast blocks are
+# the Global Front End VIP ranges that terminate Cloud CDN traffic.
+34.96.0.0/20
+34.98.0.0/16
+34.102.0.0/16
+34.104.0.0/16
+34.110.32.0/22
+34.111.0.0/16
+35.190.0.0/17
+35.191.0.0/16
+35.201.0.0/16
+130.211.0.0/22
+142.250.0.0/15
+172.217.0.0/16
+216.58.192.0/19
+216.239.32.0/19

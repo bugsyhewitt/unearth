@@ -518,3 +518,85 @@ func TestClassifyHeaders_AzureFrontDoor(t *testing.T) {
 		}
 	})
 }
+
+// ── Google Cloud CDN ────────────────────────────────────────────────────────
+
+func TestIsCDNIP_GoogleCDN(t *testing.T) {
+	// 130.211.0.1 is inside 130.211.0.0/22, a Google GFE / Cloud CDN range.
+	addr := netip.MustParseAddr("130.211.0.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("130.211.0.1 should be Google Cloud CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "googlecdn" {
+		t.Errorf("ProviderForIP(130.211.0.1) = %q, want googlecdn", got)
+	}
+}
+
+func TestIsCDNIP_GoogleCDN_IPv6(t *testing.T) {
+	// 2607:f8b0::1 is inside 2607:f8b0::/32, a Google IPv6 range.
+	addr := netip.MustParseAddr("2607:f8b0::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2607:f8b0::1 should be Google Cloud CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "googlecdn" {
+		t.Errorf("ProviderForIP(2607:f8b0::1) = %q, want googlecdn", got)
+	}
+}
+
+func TestProviderByDNS_GoogleCDN(t *testing.T) {
+	cases := map[string]string{
+		"ghs.googlehosted.com":      "googlecdn",
+		"foo.googleusercontent.com": "googlecdn",
+		"c.storage.googleapis.com":  "googlecdn",
+		"any.l.google.com":          "googlecdn",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_GoogleCDN(t *testing.T) {
+	t.Run("server-google-frontend", func(t *testing.T) {
+		h := http.Header{"Server": []string{"Google Frontend"}}
+		if got := classifyHeaders(h); got != "googlecdn" {
+			t.Errorf("classifyHeaders with server Google Frontend = %q, want googlecdn", got)
+		}
+	})
+	t.Run("via-google", func(t *testing.T) {
+		h := http.Header{"Via": []string{"1.1 google"}}
+		if got := classifyHeaders(h); got != "googlecdn" {
+			t.Errorf("classifyHeaders with via 1.1 google = %q, want googlecdn", got)
+		}
+	})
+	t.Run("x-goog-hash", func(t *testing.T) {
+		h := http.Header{"X-Goog-Hash": []string{"crc32c=abc"}}
+		if got := classifyHeaders(h); got != "googlecdn" {
+			t.Errorf("classifyHeaders with x-goog-hash = %q, want googlecdn", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{
+			"Server":      []string{"Google Frontend"},
+			"Via":         []string{"1.1 google"},
+			"X-Goog-Hash": []string{"crc32c=abc"},
+		}
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawVia, sawGoog bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: google frontend (google cloud cdn)":
+				sawServer = true
+			case "header via mentions google (google cloud cdn)":
+				sawVia = true
+			case "header x-goog-* present (google cloud cdn)":
+				sawGoog = true
+			}
+		}
+		if !sawServer || !sawVia || !sawGoog {
+			t.Errorf("expected google cloud cdn signals, got %v", sigs)
+		}
+	})
+}

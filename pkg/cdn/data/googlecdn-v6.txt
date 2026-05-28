@@ -1,0 +1,9 @@
+# Google Cloud CDN / Google Front End (GFE) IPv6 ranges — captured 2026-05-28
+# Source: Google Cloud published goog-prefixes / cloud.json
+#   https://www.gstatic.com/ipranges/cloud.json
+#   https://www.gstatic.com/ipranges/goog.json
+2600:1900::/28
+2607:f8b0::/32
+2800:3f0::/32
+2a00:1450::/32
+2c0f:fb50::/32
