@@ -123,6 +123,15 @@ type APIKeys struct {
 	// markedly APAC-weighted slice of the internet, complementing the
 	// US-centric Censys/Shodan backends.
 	ZoomEyeKey string
+
+	// ChaosKey is the API key for the ProjectDiscovery Chaos
+	// (chaos.projectdiscovery.io) subdomain dataset API. Required to run
+	// chaos_asset; absent skips the technique. Generated from a
+	// ProjectDiscovery Cloud Platform (PDCP) account's API-key page. Chaos
+	// offers a free tier; its subdomain corpus is aggregated independently of
+	// the active-scan engines, so resolving the hosts it has catalogued under a
+	// target domain surfaces origins the cert and scan engines miss.
+	ChaosKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

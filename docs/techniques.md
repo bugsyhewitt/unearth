@@ -197,6 +197,24 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `chaos_asset`
+
+**Tier:** Passive | **Weight:** 0.66 | **API key:** `PDCP_API_KEY`
+
+**What it does:** Queries ProjectDiscovery's Chaos dataset (`chaos.projectdiscovery.io` — the same corpus that powers `subfinder`) for the subdomains it has catalogued under the target apex, resolves each one, and surfaces the non-CDN IPs behind them as origin candidates. **This is not a certificate-fingerprint pivot.** Like `fullhunt_asset` and `zoomeye_asset`, it is an asset enumerator, not a cert engine.
+
+**Data source:** Chaos dataset DNS API (`https://dns.projectdiscovery.io/dns/{domain}/subdomains`). The target domain is the path parameter and the key authenticates via the `Authorization` header. The response is a single envelope carrying a `subdomains[]` array of bare, apex-relative labels (e.g. `origin` for `origin.example.com`). The whole list arrives in one response, so no pagination is needed.
+
+**How it differs from the other asset backends:** `fullhunt_asset` and `zoomeye_asset` return host→IP records directly; Chaos returns only subdomain *names*. The technique therefore reassembles each label into a fully qualified hostname under the apex and resolves it with the shared resolver (the same one the other passive DNS techniques use). The non-CDN IPs the resolver returns become candidates. To keep the DNS fan-out bounded, at most the first 256 subdomains (sorted for determinism) are resolved per run.
+
+**Why it complements the other engines:** Chaos's corpus is a different lineage, not a redundant one. It is aggregated from public bug-bounty programs, certificate transparency, and community contributions rather than from active internet-wide scanning. A forgotten origin record — `origin.example.com`, `direct.example.com`, a stale `dev.`/`mail.` host — that never reused the front-door certificate (so the cert pivots miss it) but that ProjectDiscovery has catalogued will surface here, resolved to its backend IP.
+
+**Key requirement:** `PDCP_API_KEY` must be present (the legacy `CHAOS_API_KEY` and `UNEARTH_PDCP_API_KEY` aliases are also accepted); without it the technique skips gracefully. ProjectDiscovery offers a free tier — when the request allowance is exhausted, or the plan lacks the endpoint, the API answers `HTTP 429`/`403` (or a quota/permission message, sometimes `HTTP 200` carrying a `message`/`error` field), which the technique treats as a clean tier-insufficient skip rather than a run failure. An invalid key degrades to a clean missing-key skip.
+
+**Limitations:** Chaos returns names, not addresses, so a subdomain whose record has since been deleted or repointed resolves to nothing (or to the current, possibly CDN-fronted, address) and contributes no useful candidate. The dataset is only as fresh as ProjectDiscovery's last ingestion, and only subdomains it has catalogued are returned. The 256-subdomain resolve cap means very large apex domains are sampled rather than exhaustively resolved.
+
+---
+
 ### `dns_history`
 
 **Tier:** Passive | **Weight:** 0.65 | **API key:** `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY`
