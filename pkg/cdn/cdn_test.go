@@ -1160,3 +1160,120 @@ func TestClassifyHeaders_KeyCDN(t *testing.T) {
 		}
 	})
 }
+
+// ── Gcore (G-Core Labs) ──────────────────────────────────────────────────────
+
+func TestIsCDNIP_Gcore(t *testing.T) {
+	// 92.223.64.1 is inside 92.223.64.0/19, a Gcore AS199524 range.
+	addr := netip.MustParseAddr("92.223.64.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("92.223.64.1 should be Gcore CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "gcore" {
+		t.Errorf("ProviderForIP(92.223.64.1) = %q, want gcore", got)
+	}
+}
+
+func TestIsCDNIP_Gcore_Range2(t *testing.T) {
+	// 5.188.48.10 is inside 5.188.48.0/20, another Gcore range.
+	addr := netip.MustParseAddr("5.188.48.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("5.188.48.10 should be Gcore CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "gcore" {
+		t.Errorf("ProviderForIP(5.188.48.10) = %q, want gcore", got)
+	}
+}
+
+func TestIsCDNIP_Gcore_IPv6(t *testing.T) {
+	// 2a03:f480::1 is inside 2a03:f480::/32, a Gcore IPv6 range.
+	addr := netip.MustParseAddr("2a03:f480::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2a03:f480::1 should be Gcore CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "gcore" {
+		t.Errorf("ProviderForIP(2a03:f480::1) = %q, want gcore", got)
+	}
+}
+
+// TestProviderForIP_Gcore_Negative confirms an address just outside the
+// embedded Gcore blocks is not misattributed to Gcore.
+func TestProviderForIP_Gcore_Negative(t *testing.T) {
+	// 92.223.96.1 is one /19 above 92.223.64.0/19 and is not in any
+	// embedded range.
+	addr := netip.MustParseAddr("92.223.96.1")
+	if got := ProviderForIP(addr); got == "gcore" {
+		t.Errorf("ProviderForIP(92.223.96.1) = gcore, want non-gcore")
+	}
+}
+
+func TestProviderByDNS_Gcore(t *testing.T) {
+	cases := map[string]string{
+		"mycdn.gcdn.co":        "gcore",
+		"assets.gcorelabs.com": "gcore",
+		"static.gcore.com":     "gcore",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestProviderByDNS_Gcore_Negative(t *testing.T) {
+	// A lookalike that is not a Gcore suffix must not match.
+	if got, _ := providerByDNS("gcdn.co.evil.example"); got == "gcore" {
+		t.Errorf("providerByDNS(gcdn.co.evil.example) = gcore, want non-gcore")
+	}
+}
+
+func TestClassifyHeaders_Gcore(t *testing.T) {
+	t.Run("server-gcore", func(t *testing.T) {
+		h := http.Header{"Server": []string{"gcore"}}
+		if got := classifyHeaders(h); got != "gcore" {
+			t.Errorf("classifyHeaders with server gcore = %q, want gcore", got)
+		}
+	})
+	t.Run("x-gcore-header", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Gcore-Pop", "ams")
+		if got := classifyHeaders(h); got != "gcore" {
+			t.Errorf("classifyHeaders with x-gcore-pop = %q, want gcore", got)
+		}
+	})
+	t.Run("x-cdn-gcore", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "Gcore")
+		if got := classifyHeaders(h); got != "gcore" {
+			t.Errorf("classifyHeaders with x-cdn Gcore = %q, want gcore", got)
+		}
+	})
+	t.Run("negative-no-gcore-marker", func(t *testing.T) {
+		h := http.Header{"Server": []string{"nginx"}}
+		if got := classifyHeaders(h); got == "gcore" {
+			t.Errorf("classifyHeaders with plain nginx = gcore, want non-gcore")
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("Server", "gcore")
+		h.Set("X-Gcore-Pop", "ams")
+		h.Set("X-CDN", "Gcore")
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawXGcore, sawXCDN bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: gcore (gcore)":
+				sawServer = true
+			case "header x-gcore-* present (gcore)":
+				sawXGcore = true
+			case "header x-cdn mentions gcore":
+				sawXCDN = true
+			}
+		}
+		if !sawServer || !sawXGcore || !sawXCDN {
+			t.Errorf("expected gcore signals, got %v", sigs)
+		}
+	})
+}

@@ -1,0 +1,4 @@
+# Gcore (G-Core Labs) IPv6 ranges — captured 2026-05-29
+# Source: published Gcore edge prefixes via the Gcore ASN AS199524.
+#   https://bgp.he.net/AS199524
+2a03:f480::/32

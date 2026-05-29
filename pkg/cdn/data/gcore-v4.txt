@@ -1,0 +1,10 @@
+# Gcore (G-Core Labs) IPv4 ranges — captured 2026-05-29
+# Gcore (formerly G-Core Labs S.A., Luxembourg) runs a global edge / CDN network
+# under AS199524 (GCORE / G-Core Labs S.A.). The edge POPs announce from these
+# blocks; CDN hostnames (*.gcdn.co / *.gcorelabs.com) resolve into them.
+# Source: published Gcore edge prefixes via the Gcore ASN AS199524.
+#   https://bgp.he.net/AS199524
+# These blocks are Gcore-exclusive and do not overlap any other snapshot here.
+92.223.64.0/19
+5.188.48.0/20
+185.193.116.0/22

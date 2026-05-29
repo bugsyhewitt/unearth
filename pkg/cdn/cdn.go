@@ -6,7 +6,7 @@
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
 // (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
-// BunnyCDN, CDN77, Edgio (Limelight / Edgecast), and KeyCDN.
+// BunnyCDN, CDN77, Edgio (Limelight / Edgecast), KeyCDN, and Gcore (G-Core Labs).
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -109,6 +109,12 @@ var keyCDNV4Raw []byte
 //go:embed data/keycdn-v6.txt
 var keyCDNV6Raw []byte
 
+//go:embed data/gcore-v4.txt
+var gcoreV4Raw []byte
+
+//go:embed data/gcore-v6.txt
+var gcoreV6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -210,6 +216,33 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded KeyCDN ranges: %v", err))
 	}
 	providers = append(providers, keycdn)
+
+	gcore, err := buildGcore()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Gcore ranges: %v", err))
+	}
+	providers = append(providers, gcore)
+}
+
+func buildGcore() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(gcoreV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("gcore v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(gcoreV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("gcore v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "gcore",
+		dnsHints: []string{
+			".gcdn.co",
+			".gcorelabs.com",
+			".gcore.com",
+		},
+		prefixes: prefixes,
+	}, nil
 }
 
 func buildKeyCDN() (*Provider, error) {
@@ -723,7 +756,30 @@ func classifyHeaders(h http.Header) string {
 	if isKeyCDNHeaders(h) {
 		return "keycdn"
 	}
+	if isGcoreHeaders(h) {
+		return "gcore"
+	}
 	return ""
+}
+
+// isGcoreHeaders reports whether the response headers carry a Gcore (G-Core
+// Labs S.A.) signature. Gcore edge nodes advertise "Server: gcore" on edge
+// responses and stamp the proprietary X-Gcore-* header family (such as
+// X-Gcore-Pop identifying the serving POP); some configurations also emit an
+// "X-CDN: Gcore" marker. Any of these markers identifies the provider.
+func isGcoreHeaders(h http.Header) bool {
+	if strings.Contains(strings.ToLower(h.Get("Server")), "gcore") {
+		return true
+	}
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-gcore-") {
+			return true
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "gcore") {
+		return true
+	}
+	return false
 }
 
 // isKeyCDNHeaders reports whether the response headers carry a KeyCDN (proinity
@@ -996,6 +1052,18 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "keycdn") {
 		out = append(out, "header x-cdn mentions keycdn")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "gcore") {
+		out = append(out, "header server: gcore (gcore)")
+	}
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-gcore-") {
+			out = append(out, "header x-gcore-* present (gcore)")
+			break
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "gcore") {
+		out = append(out, "header x-cdn mentions gcore")
 	}
 	return out
 }

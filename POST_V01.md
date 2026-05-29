@@ -463,8 +463,24 @@ The CDN origin-discovery space in mid-2026:
    registry covers Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva,
    Azure Front Door, Google Cloud CDN, and StackPath/Highwinds. There are no
    remaining first-tier enterprise front-ends unmodeled; further coverage passes
-   would target niche / regional CDNs (e.g. KeyCDN, Gcore, Tencent EdgeOne,
-   Alibaba/Aliyun CDN). BunnyCDN, CDN77, and Edgio are now done.
+   would target niche / regional CDNs (e.g. Tencent EdgeOne, Alibaba/Aliyun
+   CDN). BunnyCDN, CDN77, Edgio, KeyCDN, and Gcore are now done.
+
+   > Gcore (G-Core Labs) shipped Phase 2, 2026-05-29 in `pkg/cdn/cdn.go`
+   > (`buildGcore`, `isGcoreHeaders`) with embedded `pkg/cdn/data/gcore-v4.txt`
+   > / `gcore-v6.txt` snapshots sourced from the Gcore ASN AS199524 (G-Core Labs
+   > S.A., Luxembourg). Gcore was the highest-traffic-share regional edge network
+   > still unmodeled after KeyCDN — a clean ASN/CNAME/header fingerprint with no
+   > paid API. Detection signals: `gcdn.co` / `gcorelabs.com` / `gcore.com` CNAME
+   > suffixes; the `server: gcore` edge marker; the proprietary `x-gcore-*`
+   > header family (e.g. `x-gcore-pop` serving POP); and an `x-cdn: gcore` value.
+   > Self-contained: no API key, no new dependency, pure data + classification.
+   > Mirrors the `buildKeyCDN()` / `buildEdgio()` pattern exactly. The Gcore
+   > prefixes were chosen Gcore-exclusive so they do not overlap any other
+   > provider snapshot; in particular the IPv6 block was set to `2a03:f480::/32`
+   > to avoid colliding with CDN77's `2a03:90c0::/29` (a `/29` that masks the
+   > `2a03:90c0`–`2a03:90c7` range). The registry-wide
+   > `TestNoDuplicatePrefixAcrossProviders` guard passes.
 
    > Edgio shipped Phase 2, 2026-05-29 in `pkg/cdn/cdn.go` (`buildEdgio`,
    > `isEdgioHeaders`) with embedded `pkg/cdn/data/edgio-v4.txt` /
