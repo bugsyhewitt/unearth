@@ -786,3 +786,121 @@ func TestClassifyHeaders_BunnyCDN(t *testing.T) {
 		}
 	})
 }
+
+// TestNoDuplicatePrefixAcrossProviders guards the provider registry against the
+// silent-masking failure mode: ProviderForIP is first-match-wins, so if two
+// providers claim the same prefix the second provider becomes unreachable for
+// that range. Every embedded prefix must belong to exactly one provider.
+func TestNoDuplicatePrefixAcrossProviders(t *testing.T) {
+	seen := make(map[string]string)
+	for _, p := range providers {
+		for _, pref := range p.prefixes {
+			key := pref.String()
+			if owner, dup := seen[key]; dup && owner != p.Name {
+				t.Errorf("prefix %s claimed by both %q and %q", key, owner, p.Name)
+			}
+			seen[key] = p.Name
+		}
+	}
+}
+
+// ── CDN77 ──────────────────────────────────────────────────────────────────────
+
+func TestIsCDNIP_CDN77(t *testing.T) {
+	// 185.59.220.1 is inside 185.59.220.0/22, a CDN77 AS60068 range.
+	addr := netip.MustParseAddr("185.59.220.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("185.59.220.1 should be CDN77 CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cdn77" {
+		t.Errorf("ProviderForIP(185.59.220.1) = %q, want cdn77", got)
+	}
+}
+
+func TestIsCDNIP_CDN77_Range2(t *testing.T) {
+	// 212.102.40.10 is inside 212.102.32.0/19, another CDN77 range.
+	addr := netip.MustParseAddr("212.102.40.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("212.102.40.10 should be CDN77 CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cdn77" {
+		t.Errorf("ProviderForIP(212.102.40.10) = %q, want cdn77", got)
+	}
+}
+
+func TestIsCDNIP_CDN77_IPv6(t *testing.T) {
+	// 2a03:90c0::1 is inside 2a03:90c0::/29, a CDN77 IPv6 range.
+	addr := netip.MustParseAddr("2a03:90c0::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2a03:90c0::1 should be CDN77 CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cdn77" {
+		t.Errorf("ProviderForIP(2a03:90c0::1) = %q, want cdn77", got)
+	}
+}
+
+func TestProviderByDNS_CDN77(t *testing.T) {
+	cases := map[string]string{
+		"mypull.cdn77.org":     "cdn77",
+		"assets.cdn77-ssl.net": "cdn77",
+		"static.cdn77.net":     "cdn77",
+		"www.cdn77.com":        "cdn77",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_CDN77(t *testing.T) {
+	t.Run("x-77-cache", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-77-Cache", "HIT")
+		if got := classifyHeaders(h); got != "cdn77" {
+			t.Errorf("classifyHeaders with x-77-cache = %q, want cdn77", got)
+		}
+	})
+	t.Run("x-77-nzt", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-77-Nzt", "1")
+		if got := classifyHeaders(h); got != "cdn77" {
+			t.Errorf("classifyHeaders with x-77-nzt = %q, want cdn77", got)
+		}
+	})
+	t.Run("server-cdn77", func(t *testing.T) {
+		h := http.Header{"Server": []string{"CDN77"}}
+		if got := classifyHeaders(h); got != "cdn77" {
+			t.Errorf("classifyHeaders with server CDN77 = %q, want cdn77", got)
+		}
+	})
+	t.Run("x-cdn-cdn77", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "CDN77")
+		if got := classifyHeaders(h); got != "cdn77" {
+			t.Errorf("classifyHeaders with x-cdn CDN77 = %q, want cdn77", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-77-Pop", "prague")
+		h.Set("Server", "CDN77")
+		h.Set("X-CDN", "CDN77")
+		sigs := collectHeaderSignals(h)
+		var sawX77, sawServer, sawXCDN bool
+		for _, s := range sigs {
+			switch s {
+			case "header x-77-* present (cdn77)":
+				sawX77 = true
+			case "header server: cdn77 (cdn77)":
+				sawServer = true
+			case "header x-cdn mentions cdn77":
+				sawXCDN = true
+			}
+		}
+		if !sawX77 || !sawServer || !sawXCDN {
+			t.Errorf("expected cdn77 signals, got %v", sigs)
+		}
+	})
+}

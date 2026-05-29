@@ -5,8 +5,8 @@
 // CDN, because they cannot be the real origin.
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
-// (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds, and
-// BunnyCDN.
+// (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
+// BunnyCDN, and CDN77.
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -91,6 +91,12 @@ var bunnyCDNV4Raw []byte
 //go:embed data/bunnycdn-v6.txt
 var bunnyCDNV6Raw []byte
 
+//go:embed data/cdn77-v4.txt
+var cdn77V4Raw []byte
+
+//go:embed data/cdn77-v6.txt
+var cdn77V6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -174,6 +180,34 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded BunnyCDN ranges: %v", err))
 	}
 	providers = append(providers, bunnycdn)
+
+	cdn77, err := buildCDN77()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded CDN77 ranges: %v", err))
+	}
+	providers = append(providers, cdn77)
+}
+
+func buildCDN77() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(cdn77V4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("cdn77 v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(cdn77V6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("cdn77 v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "cdn77",
+		dnsHints: []string{
+			".cdn77.org",
+			".cdn77-ssl.net",
+			".cdn77.net",
+			".cdn77.com",
+		},
+		prefixes: prefixes,
+	}, nil
 }
 
 func buildFastly() (*Provider, error) {
@@ -612,7 +646,30 @@ func classifyHeaders(h http.Header) string {
 	if isBunnyCDNHeaders(h) {
 		return "bunnycdn"
 	}
+	if isCDN77Headers(h) {
+		return "cdn77"
+	}
 	return ""
+}
+
+// isCDN77Headers reports whether the response headers carry a CDN77 (DataCamp /
+// CDN77 s.r.o.) signature. CDN77 edge nodes stamp the proprietary X-77-* family
+// of headers (X-77-Cache hit/miss status, X-77-Nzt request tracking, X-77-Pop
+// serving POP) on every edge response, and many POPs advertise "Server: CDN77"
+// or an "X-CDN: CDN77" marker. Any of these markers identifies the provider.
+func isCDN77Headers(h http.Header) bool {
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-77-") {
+			return true
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "cdn77") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "cdn77") {
+		return true
+	}
+	return false
 }
 
 // isBunnyCDNHeaders reports whether the response headers carry a BunnyCDN
@@ -779,6 +836,18 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if h.Get("CDN-RequestCountryCode") != "" {
 		out = append(out, "header cdn-requestcountrycode present (bunnycdn)")
+	}
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-77-") {
+			out = append(out, "header x-77-* present (cdn77)")
+			break
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "cdn77") {
+		out = append(out, "header server: cdn77 (cdn77)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "cdn77") {
+		out = append(out, "header x-cdn mentions cdn77")
 	}
 	return out
 }

@@ -463,8 +463,27 @@ The CDN origin-discovery space in mid-2026:
    registry covers Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva,
    Azure Front Door, Google Cloud CDN, and StackPath/Highwinds. There are no
    remaining first-tier enterprise front-ends unmodeled; further coverage passes
-   would target niche / regional CDNs (e.g. BunnyCDN, KeyCDN, Gcore, CDN77,
-   Tencent EdgeOne, Alibaba/Aliyun CDN).
+   would target niche / regional CDNs (e.g. KeyCDN, Gcore, Tencent EdgeOne,
+   Alibaba/Aliyun CDN). BunnyCDN and CDN77 are now done.
+
+   > CDN77 shipped Phase 2, 2026-05-29 in `pkg/cdn/cdn.go` (`buildCDN77`,
+   > `isCDN77Headers`) with embedded `pkg/cdn/data/cdn77-v4.txt` /
+   > `cdn77-v6.txt` snapshots sourced from the CDN77 / DataCamp ASN AS60068
+   > (DataCamp Limited / CDN77 s.r.o.). Detection signals: `cdn77.org` /
+   > `cdn77-ssl.net` / `cdn77.net` / `cdn77.com` CNAME suffixes; the
+   > proprietary `X-77-*` edge header family (`X-77-Cache` cache status,
+   > `X-77-Nzt` request tracking, `X-77-Pop` serving POP); the `Server: CDN77`
+   > marker; and an `X-CDN: CDN77` value. Self-contained: no API key, no new
+   > dependency, pure data + classification. Mirrors the `buildBunnyCDN()` /
+   > `buildStackPath()` pattern exactly. The CDN77-exclusive prefixes were chosen
+   > so they do not overlap the BunnyCDN AS200325 snapshot (DataCamp historically
+   > shares some infrastructure with bunny.net). A new registry-wide guard test,
+   > `TestNoDuplicatePrefixAcrossProviders`, enforces that no prefix is claimed by
+   > two providers — and in the process surfaced a pre-existing data error:
+   > `192.230.64.0/18` was wrongly listed in the Imperva snapshot (it is announced
+   > from AS33438, StackPath/Highwinds), which made StackPath traffic in that block
+   > unreachable under `ProviderForIP`'s first-match-wins lookup. The erroneous
+   > entry was removed from `imperva-v4.txt`.
 
    > StackPath/Highwinds shipped Phase 2, 2026-05-28 in `pkg/cdn/cdn.go`
    > (`buildStackPath`, `isStackPathHeaders`) with embedded

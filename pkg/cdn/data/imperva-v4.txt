@@ -6,7 +6,11 @@
 149.126.72.0/21
 103.28.248.0/22
 185.11.124.0/22
-192.230.64.0/18
+# 192.230.64.0/18 removed 2026-05-28: this block is announced from AS33438
+# (StackPath/Highwinds, the former NetDNA/MaxCDN network) and is claimed by the
+# stackpath snapshot. It is not an Incapsula/Imperva (AS19551) edge range — it
+# was erroneously included here and made StackPath traffic in this block
+# unreachable under ProviderForIP's first-match-wins lookup.
 45.64.64.0/22
 107.154.0.0/16
 45.60.0.0/16

@@ -1,0 +1,4 @@
+# CDN77 IPv6 ranges — captured 2026-05-28
+# Source: published CDN77 / DataCamp edge prefixes via the CDN77 ASN AS60068.
+#   https://bgp.he.net/AS60068
+2a03:90c0::/29
