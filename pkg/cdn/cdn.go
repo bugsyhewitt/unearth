@@ -6,7 +6,7 @@
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
 // (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
-// BunnyCDN, CDN77, and Edgio (Limelight / Edgecast).
+// BunnyCDN, CDN77, Edgio (Limelight / Edgecast), and KeyCDN.
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -103,6 +103,12 @@ var edgioV4Raw []byte
 //go:embed data/edgio-v6.txt
 var edgioV6Raw []byte
 
+//go:embed data/keycdn-v4.txt
+var keyCDNV4Raw []byte
+
+//go:embed data/keycdn-v6.txt
+var keyCDNV6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -198,6 +204,32 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Edgio ranges: %v", err))
 	}
 	providers = append(providers, edgio)
+
+	keycdn, err := buildKeyCDN()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded KeyCDN ranges: %v", err))
+	}
+	providers = append(providers, keycdn)
+}
+
+func buildKeyCDN() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(keyCDNV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("keycdn v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(keyCDNV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("keycdn v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "keycdn",
+		dnsHints: []string{
+			".kxcdn.com",
+			".keycdn.com",
+		},
+		prefixes: prefixes,
+	}, nil
 }
 
 func buildEdgio() (*Provider, error) {
@@ -688,7 +720,28 @@ func classifyHeaders(h http.Header) string {
 	if isEdgioHeaders(h) {
 		return "edgio"
 	}
+	if isKeyCDNHeaders(h) {
+		return "keycdn"
+	}
 	return ""
+}
+
+// isKeyCDNHeaders reports whether the response headers carry a KeyCDN (proinity
+// GmbH) signature. KeyCDN edge nodes advertise "Server: keycdn-engine" on every
+// edge response and stamp the proprietary X-Edge-Location header (the serving
+// POP) plus an X-Pull header on pull-zone responses. Some configurations also
+// emit an "X-CDN: KeyCDN" marker. Any of these markers identifies the provider.
+func isKeyCDNHeaders(h http.Header) bool {
+	if strings.Contains(strings.ToLower(h.Get("Server")), "keycdn-engine") {
+		return true
+	}
+	if h.Get("X-Edge-Location") != "" || h.Get("X-Pull") != "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "keycdn") {
+		return true
+	}
+	return false
 }
 
 // isEdgioHeaders reports whether the response headers carry an Edgio (the 2022
@@ -931,6 +984,18 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "edgio") {
 		out = append(out, "header x-cdn mentions edgio")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "keycdn-engine") {
+		out = append(out, "header server: keycdn-engine (keycdn)")
+	}
+	if h.Get("X-Edge-Location") != "" {
+		out = append(out, "header x-edge-location present (keycdn)")
+	}
+	if h.Get("X-Pull") != "" {
+		out = append(out, "header x-pull present (keycdn)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "keycdn") {
+		out = append(out, "header x-cdn mentions keycdn")
 	}
 	return out
 }

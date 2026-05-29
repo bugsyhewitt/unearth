@@ -1,0 +1,12 @@
+# KeyCDN IPv4 ranges — captured 2026-05-29
+# KeyCDN (operated by proinity GmbH, Switzerland) runs its global pull-zone
+# edge network under AS199653 (proinity GmbH). The edge POPs announce from
+# these blocks; pull-zone hostnames (*.kxcdn.com) resolve into them.
+# Source: published KeyCDN / proinity edge prefixes via the KeyCDN ASN AS199653.
+#   https://bgp.he.net/AS199653
+# These blocks are KeyCDN-exclusive and do not overlap any other snapshot here.
+185.156.232.0/22
+45.142.176.0/22
+45.143.196.0/22
+91.235.52.0/22
+185.151.30.0/24

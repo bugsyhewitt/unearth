@@ -1034,3 +1034,129 @@ func TestClassifyHeaders_Edgio(t *testing.T) {
 		}
 	})
 }
+
+// ── KeyCDN (proinity GmbH) ───────────────────────────────────────────────────
+
+func TestIsCDNIP_KeyCDN(t *testing.T) {
+	// 185.156.232.1 is inside 185.156.232.0/22, a KeyCDN AS199653 range.
+	addr := netip.MustParseAddr("185.156.232.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("185.156.232.1 should be KeyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "keycdn" {
+		t.Errorf("ProviderForIP(185.156.232.1) = %q, want keycdn", got)
+	}
+}
+
+func TestIsCDNIP_KeyCDN_Range2(t *testing.T) {
+	// 45.142.176.10 is inside 45.142.176.0/22, another KeyCDN range.
+	addr := netip.MustParseAddr("45.142.176.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("45.142.176.10 should be KeyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "keycdn" {
+		t.Errorf("ProviderForIP(45.142.176.10) = %q, want keycdn", got)
+	}
+}
+
+func TestIsCDNIP_KeyCDN_IPv6(t *testing.T) {
+	// 2a05:d014:275::1 is inside 2a05:d014:275::/48, a KeyCDN IPv6 range.
+	addr := netip.MustParseAddr("2a05:d014:275::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2a05:d014:275::1 should be KeyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "keycdn" {
+		t.Errorf("ProviderForIP(2a05:d014:275::1) = %q, want keycdn", got)
+	}
+}
+
+// TestProviderForIP_KeyCDN_Negative confirms an address just outside the
+// embedded KeyCDN blocks is not misattributed to KeyCDN.
+func TestProviderForIP_KeyCDN_Negative(t *testing.T) {
+	// 185.156.236.1 is one /22 above 185.156.232.0/22 and is not in any
+	// embedded range.
+	addr := netip.MustParseAddr("185.156.236.1")
+	if got := ProviderForIP(addr); got == "keycdn" {
+		t.Errorf("ProviderForIP(185.156.236.1) = keycdn, want non-keycdn")
+	}
+}
+
+func TestProviderByDNS_KeyCDN(t *testing.T) {
+	cases := map[string]string{
+		"mypull.kxcdn.com":  "keycdn",
+		"assets.keycdn.com": "keycdn",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestProviderByDNS_KeyCDN_Negative(t *testing.T) {
+	// A lookalike that is not a KeyCDN suffix must not match.
+	if got, _ := providerByDNS("kxcdn.com.evil.example"); got == "keycdn" {
+		t.Errorf("providerByDNS(kxcdn.com.evil.example) = keycdn, want non-keycdn")
+	}
+}
+
+func TestClassifyHeaders_KeyCDN(t *testing.T) {
+	t.Run("server-keycdn-engine", func(t *testing.T) {
+		h := http.Header{"Server": []string{"keycdn-engine"}}
+		if got := classifyHeaders(h); got != "keycdn" {
+			t.Errorf("classifyHeaders with server keycdn-engine = %q, want keycdn", got)
+		}
+	})
+	t.Run("x-edge-location", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Edge-Location", "uskc")
+		if got := classifyHeaders(h); got != "keycdn" {
+			t.Errorf("classifyHeaders with x-edge-location = %q, want keycdn", got)
+		}
+	})
+	t.Run("x-pull", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Pull", "HIT")
+		if got := classifyHeaders(h); got != "keycdn" {
+			t.Errorf("classifyHeaders with x-pull = %q, want keycdn", got)
+		}
+	})
+	t.Run("x-cdn-keycdn", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "KeyCDN")
+		if got := classifyHeaders(h); got != "keycdn" {
+			t.Errorf("classifyHeaders with x-cdn KeyCDN = %q, want keycdn", got)
+		}
+	})
+	t.Run("negative-no-keycdn-marker", func(t *testing.T) {
+		h := http.Header{"Server": []string{"nginx"}}
+		if got := classifyHeaders(h); got == "keycdn" {
+			t.Errorf("classifyHeaders with plain nginx = keycdn, want non-keycdn")
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("Server", "keycdn-engine")
+		h.Set("X-Edge-Location", "uskc")
+		h.Set("X-Pull", "HIT")
+		h.Set("X-CDN", "KeyCDN")
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawEdge, sawPull, sawXCDN bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: keycdn-engine (keycdn)":
+				sawServer = true
+			case "header x-edge-location present (keycdn)":
+				sawEdge = true
+			case "header x-pull present (keycdn)":
+				sawPull = true
+			case "header x-cdn mentions keycdn":
+				sawXCDN = true
+			}
+		}
+		if !sawServer || !sawEdge || !sawPull || !sawXCDN {
+			t.Errorf("expected keycdn signals, got %v", sigs)
+		}
+	})
+}

@@ -1,0 +1,4 @@
+# KeyCDN IPv6 ranges — captured 2026-05-29
+# Source: published KeyCDN / proinity edge prefixes via the KeyCDN ASN AS199653.
+#   https://bgp.he.net/AS199653
+2a05:d014:275::/48
