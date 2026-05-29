@@ -109,6 +109,12 @@ type APIKeys struct {
 	// from a LeakIX account's Settings → API key page. LeakIX offers a free
 	// tier with a daily request allowance.
 	LeakIXKey string
+
+	// FullHuntKey is the API key for the FullHunt (fullhunt.io) attack-surface
+	// API. Required to run fullhunt_asset; absent skips the technique.
+	// Generated from a FullHunt account's API key page. FullHunt offers a free
+	// tier with a monthly request allowance.
+	FullHuntKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

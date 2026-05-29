@@ -467,6 +467,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.BinaryEdgeKey != ""
 	case "leakix_cert":
 		return k.LeakIXKey != ""
+	case "fullhunt_asset":
+		return k.FullHuntKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we
