@@ -1,0 +1,29 @@
+# Edgio IPv4 ranges — captured 2026-05-29
+# Edgio (formed from the 2022 merger of Limelight Networks and Edgecast /
+# Verizon Media) runs its global delivery network primarily under two ASNs:
+#   AS22822 — Limelight Networks Global (the historical Limelight edge)
+#   AS15133 — Edgecast Inc. / Verizon Digital Media Services (now Edgio)
+# Edge POPs announce origin-fronting traffic from these blocks; delivery
+# hostnames (*.llnwd.net, *.edgecastcdn.net, *.edgio.net) resolve into them.
+# Source: published Edgio / Limelight / Edgecast edge prefixes via the two
+# operating ASNs.
+#   https://bgp.he.net/AS22822
+#   https://bgp.he.net/AS15133
+# These blocks are Edgio-exclusive and do not overlap any other provider
+# snapshot in this registry.
+#
+# Limelight (AS22822) edge
+68.142.64.0/18
+69.164.0.0/17
+95.211.0.0/18
+178.79.192.0/18
+185.54.220.0/22
+208.111.128.0/17
+# Edgecast / Verizon Media (AS15133) edge
+72.21.80.0/20
+72.21.192.0/19
+93.184.208.0/20
+117.18.232.0/21
+152.195.0.0/16
+192.16.0.0/16
+198.7.16.0/20

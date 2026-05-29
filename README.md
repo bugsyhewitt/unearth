@@ -262,6 +262,7 @@ The following CDNs are detected (IP-range matching + header and DNS signals):
 - **StackPath / Highwinds** — published Highwinds edge ranges (AS20446 / AS33438, the former NetDNA / MaxCDN network), `stackpathcdn.com`/`stackpathdns.com`/`hwcdn.net`/`netdna-cdn.com`/`netdna-ssl.com` CNAME signals, the `x-hw` Highwinds edge header, `server: NetDNA-cache`, and `x-cdn: stackpath`
 - **BunnyCDN (bunny.net)** — published edge ranges (AS200325, BunnyWay d.o.o.), `b-cdn.net`/`bunnycdn.com`/`bunny.net` CNAME signals, the `server: BunnyCDN-<pop>` edge marker, and the `cdn-pullzone`/`cdn-requestcountrycode` pull-zone headers
 - **CDN77 (DataCamp)** — published edge ranges (AS60068, DataCamp Limited / CDN77 s.r.o.), `cdn77.org`/`cdn77-ssl.net`/`cdn77.net`/`cdn77.com` CNAME signals, the proprietary `x-77-*` edge headers (`x-77-cache`/`x-77-nzt`/`x-77-pop`), the `server: CDN77` marker, and an `x-cdn: cdn77` value
+- **Edgio (Limelight / Edgecast)** — published edge ranges from the two operating ASNs (AS22822 Limelight Networks Global and AS15133 Edgecast / Verizon Media, now Edgio), `llnwd.net`/`llnw.com`/`lldns.net`/`edgecastcdn.net`/`systemcdn.net`/`edgio.net` CNAME signals, the Edgecast `server: ECS`/`server: ECAcc` and Limelight `server: LimeLight` edge markers, the `x-llid` request-tracking header, the `x-ec-*` Edgecast header family, and an `x-cdn: edgio` value
 
 Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 

@@ -464,7 +464,28 @@ The CDN origin-discovery space in mid-2026:
    Azure Front Door, Google Cloud CDN, and StackPath/Highwinds. There are no
    remaining first-tier enterprise front-ends unmodeled; further coverage passes
    would target niche / regional CDNs (e.g. KeyCDN, Gcore, Tencent EdgeOne,
-   Alibaba/Aliyun CDN). BunnyCDN and CDN77 are now done.
+   Alibaba/Aliyun CDN). BunnyCDN, CDN77, and Edgio are now done.
+
+   > Edgio shipped Phase 2, 2026-05-29 in `pkg/cdn/cdn.go` (`buildEdgio`,
+   > `isEdgioHeaders`) with embedded `pkg/cdn/data/edgio-v4.txt` /
+   > `edgio-v6.txt` snapshots. Edgio is the 2022 merger of Limelight Networks
+   > and Edgecast (Verizon Media) and is the highest-traffic-share enterprise
+   > CDN still unmodeled after CDN77 — a clean ASN/CNAME/header fingerprint with
+   > no paid API. The snapshot covers both operating ASNs: AS22822 (Limelight
+   > Networks Global, the historical Limelight edge) and AS15133 (Edgecast /
+   > Verizon Media). Detection signals: `llnwd.net` / `llnw.com` / `lldns.net`
+   > (Limelight) and `edgecastcdn.net` / `systemcdn.net` / `edgio.net`
+   > (Edgecast/Edgio) CNAME suffixes; the Edgecast `Server: ECS` / `Server:
+   > ECAcc` and Limelight `Server: LimeLight` edge markers; the `X-LLID`
+   > Limelight request-tracking header; the `X-EC-*` Edgecast header family; and
+   > an `X-CDN: Edgio` value. Self-contained: no API key, no new dependency, pure
+   > data + classification. Mirrors the `buildCDN77()` / `buildBunnyCDN()`
+   > pattern exactly. Edge prefixes were chosen Edgio-exclusive so they do not
+   > overlap any other provider snapshot; the registry-wide
+   > `TestNoDuplicatePrefixAcrossProviders` guard passes. Notably the classic
+   > example.com address `93.184.216.34` falls inside the Edgecast `93.184.208.0/20`
+   > block and is now correctly classified as a CDN IP rather than an origin
+   > candidate.
 
    > CDN77 shipped Phase 2, 2026-05-29 in `pkg/cdn/cdn.go` (`buildCDN77`,
    > `isCDN77Headers`) with embedded `pkg/cdn/data/cdn77-v4.txt` /

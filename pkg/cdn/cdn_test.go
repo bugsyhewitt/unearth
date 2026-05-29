@@ -904,3 +904,133 @@ func TestClassifyHeaders_CDN77(t *testing.T) {
 		}
 	})
 }
+
+// ── Edgio (Limelight / Edgecast) ─────────────────────────────────────────────
+
+func TestIsCDNIP_Edgio_Limelight(t *testing.T) {
+	// 68.142.64.1 is inside 68.142.64.0/18, a Limelight AS22822 range.
+	addr := netip.MustParseAddr("68.142.64.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("68.142.64.1 should be Edgio CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "edgio" {
+		t.Errorf("ProviderForIP(68.142.64.1) = %q, want edgio", got)
+	}
+}
+
+func TestIsCDNIP_Edgio_Edgecast(t *testing.T) {
+	// 152.195.10.20 is inside 152.195.0.0/16, an Edgecast AS15133 range.
+	addr := netip.MustParseAddr("152.195.10.20")
+	if !IsCDNIP(addr) {
+		t.Errorf("152.195.10.20 should be Edgio CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "edgio" {
+		t.Errorf("ProviderForIP(152.195.10.20) = %q, want edgio", got)
+	}
+}
+
+func TestIsCDNIP_Edgio_Edgecast_Classic(t *testing.T) {
+	// 93.184.216.34 (the classic example.com IP) is inside 93.184.208.0/20,
+	// an Edgecast / Edgio AS15133 range.
+	addr := netip.MustParseAddr("93.184.216.34")
+	if !IsCDNIP(addr) {
+		t.Errorf("93.184.216.34 should be Edgio CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "edgio" {
+		t.Errorf("ProviderForIP(93.184.216.34) = %q, want edgio", got)
+	}
+}
+
+func TestIsCDNIP_Edgio_IPv6(t *testing.T) {
+	// 2607:f680::1 is inside 2607:f680::/32, a Limelight / Edgio IPv6 range.
+	addr := netip.MustParseAddr("2607:f680::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2607:f680::1 should be Edgio CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "edgio" {
+		t.Errorf("ProviderForIP(2607:f680::1) = %q, want edgio", got)
+	}
+}
+
+func TestProviderByDNS_Edgio(t *testing.T) {
+	cases := map[string]string{
+		"vod.llnwd.net":        "edgio",
+		"assets.llnw.com":      "edgio",
+		"target.lldns.net":     "edgio",
+		"wac.edgecastcdn.net":  "edgio",
+		"static.systemcdn.net": "edgio",
+		"delivery.edgio.net":   "edgio",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_Edgio(t *testing.T) {
+	t.Run("server-ecs", func(t *testing.T) {
+		h := http.Header{"Server": []string{"ECS"}}
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with server ECS = %q, want edgio", got)
+		}
+	})
+	t.Run("server-ecacc", func(t *testing.T) {
+		h := http.Header{"Server": []string{"ECAcc (dcb/7F5E)"}}
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with server ECAcc = %q, want edgio", got)
+		}
+	})
+	t.Run("server-limelight", func(t *testing.T) {
+		h := http.Header{"Server": []string{"LimeLight"}}
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with server LimeLight = %q, want edgio", got)
+		}
+	})
+	t.Run("x-llid", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-LLID", "abc123")
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with x-llid = %q, want edgio", got)
+		}
+	})
+	t.Run("x-ec-header", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-EC-Custom-Error", "0")
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with x-ec-* = %q, want edgio", got)
+		}
+	})
+	t.Run("x-cdn-edgio", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "Edgio")
+		if got := classifyHeaders(h); got != "edgio" {
+			t.Errorf("classifyHeaders with x-cdn Edgio = %q, want edgio", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("Server", "ECAcc (dcb/7F5E)")
+		h.Set("X-LLID", "abc123")
+		h.Set("X-EC-Custom-Error", "0")
+		h.Set("X-CDN", "Edgio")
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawLLID, sawEC, sawXCDN bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: edgecast/edgio edge (edgio)":
+				sawServer = true
+			case "header x-llid present (edgio/limelight)":
+				sawLLID = true
+			case "header x-ec-* present (edgio/edgecast)":
+				sawEC = true
+			case "header x-cdn mentions edgio":
+				sawXCDN = true
+			}
+		}
+		if !sawServer || !sawLLID || !sawEC || !sawXCDN {
+			t.Errorf("expected edgio signals, got %v", sigs)
+		}
+	})
+}

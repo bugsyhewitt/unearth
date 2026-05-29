@@ -6,7 +6,7 @@
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
 // (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
-// BunnyCDN, and CDN77.
+// BunnyCDN, CDN77, and Edgio (Limelight / Edgecast).
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -29,7 +29,7 @@ import (
 
 // SnapshotDate records when the embedded range data was captured. Refresh
 // callers can compare against this to decide whether to fetch fresh ranges.
-const SnapshotDate = "2026-05-28"
+const SnapshotDate = "2026-05-29"
 
 // refreshMaxAge is how long a cached refresh file is considered fresh.
 const refreshMaxAge = 24 * time.Hour
@@ -96,6 +96,12 @@ var cdn77V4Raw []byte
 
 //go:embed data/cdn77-v6.txt
 var cdn77V6Raw []byte
+
+//go:embed data/edgio-v4.txt
+var edgioV4Raw []byte
+
+//go:embed data/edgio-v6.txt
+var edgioV6Raw []byte
 
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
@@ -186,6 +192,36 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded CDN77 ranges: %v", err))
 	}
 	providers = append(providers, cdn77)
+
+	edgio, err := buildEdgio()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Edgio ranges: %v", err))
+	}
+	providers = append(providers, edgio)
+}
+
+func buildEdgio() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(edgioV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("edgio v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(edgioV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("edgio v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "edgio",
+		dnsHints: []string{
+			".llnwd.net",
+			".llnw.com",
+			".lldns.net",
+			".edgecastcdn.net",
+			".systemcdn.net",
+			".edgio.net",
+		},
+		prefixes: prefixes,
+	}, nil
 }
 
 func buildCDN77() (*Provider, error) {
@@ -649,7 +685,36 @@ func classifyHeaders(h http.Header) string {
 	if isCDN77Headers(h) {
 		return "cdn77"
 	}
+	if isEdgioHeaders(h) {
+		return "edgio"
+	}
 	return ""
+}
+
+// isEdgioHeaders reports whether the response headers carry an Edgio (the 2022
+// merger of Limelight Networks and Edgecast / Verizon Media) signature. Edgecast
+// edge nodes advertise "Server: ECS" or "Server: ECAcc" and stamp the
+// proprietary X-EC-* header family on edge responses; the legacy Limelight edge
+// stamps "Server: LimeLight" and an X-LLID request-tracking header; newer Edgio
+// POPs emit an "X-CDN: Edgio" marker. Any of these markers identifies the
+// provider.
+func isEdgioHeaders(h http.Header) bool {
+	server := strings.ToLower(h.Get("Server"))
+	if server == "ecs" || strings.HasPrefix(server, "ecacc") || strings.Contains(server, "limelight") {
+		return true
+	}
+	if h.Get("X-LLID") != "" {
+		return true
+	}
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-ec-") {
+			return true
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "edgio") {
+		return true
+	}
+	return false
 }
 
 // isCDN77Headers reports whether the response headers carry a CDN77 (DataCamp /
@@ -848,6 +913,24 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "cdn77") {
 		out = append(out, "header x-cdn mentions cdn77")
+	}
+	if server := strings.ToLower(h.Get("Server")); server == "ecs" || strings.HasPrefix(server, "ecacc") {
+		out = append(out, "header server: edgecast/edgio edge (edgio)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "limelight") {
+		out = append(out, "header server: limelight (edgio)")
+	}
+	if h.Get("X-LLID") != "" {
+		out = append(out, "header x-llid present (edgio/limelight)")
+	}
+	for k := range h {
+		if strings.HasPrefix(strings.ToLower(k), "x-ec-") {
+			out = append(out, "header x-ec-* present (edgio/edgecast)")
+			break
+		}
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "edgio") {
+		out = append(out, "header x-cdn mentions edgio")
 	}
 	return out
 }

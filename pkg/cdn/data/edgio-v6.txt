@@ -1,0 +1,10 @@
+# Edgio IPv6 ranges — captured 2026-05-29
+# Source: published Edgio / Limelight / Edgecast edge prefixes via the
+# operating ASNs AS22822 (Limelight Networks Global) and AS15133
+# (Edgecast / Verizon Media, now Edgio).
+#   https://bgp.he.net/AS22822
+#   https://bgp.he.net/AS15133
+# Limelight / Edgio anycast (AS22822)
+2607:f680::/32
+# Edgecast / Verizon Media (AS15133)
+2620:11d::/32
