@@ -133,6 +133,20 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 **Limitations:** This technique fetches a single page of up to 100 results to stay within free-tier budgets, so targets with very large certificate-sharing sets may be truncated. Netlas's free tier covers the response search used here; some advanced query operators are reserved for paid plans and are not relied upon.
 
+### `criminalip_asset`
+
+**Tier:** Passive | **Weight:** 0.70 | **API key:** `CRIMINALIP_API_KEY`
+
+**What it does:** Fingerprints the target's current TLS leaf certificate (SHA-256), then queries Criminal IP (`criminalip.io`) for every indexed asset whose banner carries that certificate fingerprint. Non-CDN hits are surfaced as origin candidates — the same cert-pivot idea as `censys_cert` / `shodan_cert` / `fofa_cert` / `netlas_cert`, against a fifth independent index.
+
+**Data source:** Criminal IP banner search API (`https://api.criminalip.io/v1/banner/search`). The query (`certificate: <sha256>`) is passed in the `query` parameter and the key authenticates via the `x-api-key` header. Each result carries a `data.result[].ip_address` field, which is parsed into a candidate (CDN edge IPs are filtered).
+
+**Why it complements the other engines:** Criminal IP runs its own AI-scored internet-wide scan corpus over 4.2B+ IPs, overlapping only partially with Shodan, Censys, FOFA, and Netlas. A misconfigured origin that leaks its real certificate may surface in Criminal IP when it is absent from the others — and a Criminal IP hit corroborating another source on the same fingerprint raises confidence under the noisy-OR ranking. The value is coverage diversity, not redundancy.
+
+**Key requirement:** `CRIMINALIP_API_KEY` must be present; without it the technique skips gracefully (exactly like the other keyed cert pivots). Criminal IP offers a free tier with a monthly request allowance — when that allowance is exhausted, or the plan lacks the banner-search capability, the API answers with a quota/permission message (frequently `HTTP 200` carrying a non-200 `status` field), which the technique treats as a clean tier-insufficient skip rather than a run failure. An invalid key degrades to a clean missing-key skip.
+
+**Limitations:** This technique fetches a single page of results to stay within free-tier budgets, so targets with very large certificate-sharing sets may be truncated. Criminal IP's free tier covers the banner search used here; some advanced search operators are reserved for paid plans and are not relied upon.
+
 ---
 
 ### `dns_history`

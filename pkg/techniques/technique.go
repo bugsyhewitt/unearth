@@ -90,6 +90,13 @@ type APIKeys struct {
 	// from a Netlas account's Profile → API key page. Netlas offers a free
 	// tier with a daily request allowance.
 	NetlasAPIKey string
+
+	// CriminalIPKey is the API key for the Criminal IP (criminalip.io)
+	// search API. Required to run criminalip_asset; absent skips the
+	// technique. Generated from a Criminal IP account's My Information → API
+	// Key page. Criminal IP offers a free tier with a monthly request
+	// allowance.
+	CriminalIPKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

@@ -357,7 +357,7 @@ func tierFromFlags(active, aggressive bool) techniques.Tier {
 
 func announceCredentialStatus(stderr io.Writer, k techniques.APIKeys) {
 	status := config.CredentialStatus(k)
-	keys := []string{"censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas"}
+	keys := []string{"censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas", "criminalip"}
 	for _, name := range keys {
 		mark := "skipped (no key)"
 		if status[name] {

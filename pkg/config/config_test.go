@@ -231,6 +231,17 @@ func TestCredentialStatus(t *testing.T) {
 	}
 }
 
+func TestCredentialStatus_CriminalIP(t *testing.T) {
+	t.Setenv("UNEARTH_CRIMINALIP_API_KEY", "")
+	if CredentialStatus(LoadAPIKeys())["criminalip"] {
+		t.Error("criminalip should be false with no key")
+	}
+	t.Setenv("UNEARTH_CRIMINALIP_API_KEY", "cip-key")
+	if !CredentialStatus(LoadAPIKeys())["criminalip"] {
+		t.Error("criminalip should be true when key is set")
+	}
+}
+
 func TestEmbeddedAndConfigsYAMLMatch(t *testing.T) {
 	// Sanity check that the canonical user-visible file in configs/ matches
 	// the embedded copy. If a future contributor edits one, the test fails

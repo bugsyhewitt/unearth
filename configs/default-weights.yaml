@@ -8,6 +8,7 @@ weights:
   shodan_cert: 0.85
   fofa_cert: 0.80
   netlas_cert: 0.75
+  criminalip_asset: 0.70
   host_header: 0.85
   banner_grab: 0.45
   error_page: 0.60

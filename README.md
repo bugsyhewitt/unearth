@@ -75,6 +75,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `shodan_cert` | Active | Yes — `SHODAN_API_KEY` | 0.85 | Shodan certificate-fingerprint search |
 | `fofa_cert` | Passive | Yes — `FOFA_EMAIL` + `FOFA_KEY` | 0.80 | FOFA certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against FOFA's 4B+ asset index for broader APAC coverage than Shodan/Censys |
 | `netlas_cert` | Passive | Yes — `NETLAS_API_KEY` | 0.75 | Netlas certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Netlas's response index; indexes domains alongside IPs and has a free tier with a daily allowance |
+| `criminalip_asset` | Passive | Yes — `CRIMINALIP_API_KEY` | 0.70 | Criminal IP certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Criminal IP's 4.2B+ asset index; its own AI-scored scan corpus surfaces origins absent from the other engines, and a free tier with a monthly allowance keeps it reachable |
 | `favicon_hash` | Active | Yes — `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT` | 0.75 | Favicon MurmurHash3 pivot — fetches `/favicon.ico`, queries Shodan/Censys for hosts sharing the same favicon |
 | `asn_sweep` | Active | No | 0.70 | BGPView ASN-range sweep — resolves target DNS to find its ASN, then probes live IPs across all ASN prefixes with host-header injection to find the real origin |
 | `jarm_fingerprint` | Active | No | 0.70 | JARM TLS active fingerprinting — sends 10 crafted ClientHellos to candidate IPs, hashes the handshake response into a 62-char fingerprint, and flags candidates whose JARM matches the target's (rejecting known CDN-edge signatures) |
@@ -100,6 +101,7 @@ export SHODAN_API_KEY="your-key"
 export FOFA_EMAIL="you@example.com"
 export FOFA_KEY="your-fofa-key"
 export NETLAS_API_KEY="your-netlas-key"
+export CRIMINALIP_API_KEY="your-criminalip-key"
 ```
 
 The tool announces which keys are loaded (or absent) on every run. Key-required techniques are silently skipped when the key is missing.
@@ -109,6 +111,8 @@ The tool announces which keys are loaded (or absent) on every run. Key-required 
 > **FOFA note:** `fofa_cert` needs **both** `FOFA_EMAIL` and `FOFA_KEY` (generated from your FOFA account's Personal Center → API page); with only one set the technique is skipped. FOFA's free tier exposes the certificate search; when an account is out of query quota FOFA answers `HTTP 200` with an `error` flag, which the technique treats as a clean tier-insufficient skip rather than a failure. FOFA's heavier APAC scan coverage complements the US-centric Shodan/Censys indexes — its value is reach, not redundancy.
 
 > **Netlas note:** `netlas_cert` needs `NETLAS_API_KEY` (generated from your Netlas account's Profile → API key page); without it the technique is skipped. Netlas offers a free tier with a daily request allowance — when that allowance is exhausted the API answers `HTTP 429` (or a quota message), which the technique treats as a clean tier-insufficient skip rather than a failure. Netlas indexes domain names alongside IPs and maintains its own scan corpus, so it surfaces origins that may be absent from Shodan, Censys, and FOFA — coverage diversity, not redundancy.
+
+> **Criminal IP note:** `criminalip_asset` needs `CRIMINALIP_API_KEY` (generated from your Criminal IP account's My Information → API Key page); without it the technique is skipped. Criminal IP offers a free tier with a monthly request allowance — when that allowance is exhausted, or the plan lacks the banner-search capability, the API answers with a quota/permission message (often `HTTP 200` carrying a non-200 `status` field), which the technique treats as a clean tier-insufficient skip rather than a failure. Criminal IP runs its own AI-scored scan corpus over 4.2B+ IPs, so it surfaces origins that may be absent from Shodan, Censys, FOFA, and Netlas — coverage diversity, not redundancy.
 
 ---
 
@@ -285,7 +289,7 @@ Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 - **Origin discovery is probabilistic.** A high-confidence score is evidence, not proof. Verify with the host-header technique or manual curl.
 - **Active and aggressive techniques touch the target or its infrastructure.** Passive-only mode (`--passive`, which is the default) is safe for recon; the other tiers make network connections to the target itself.
 - **Kaeferjaeger coverage is cloud-provider-only.** The `ct_fingerprint` Backend A scans AWS, Azure, GCP, DigitalOcean, and Oracle ranges. A bare-metal or niche-VPS origin will not appear in that dataset (though Backend B via Cert Spotter has broader reach).
-- **API key sources are rate-limited.** Censys, Shodan, SecurityTrails, ViewDNS, FOFA, and Netlas all have per-day or per-second limits. The tool respects those limits but cannot run more queries than the account allows.
+- **API key sources are rate-limited.** Censys, Shodan, SecurityTrails, ViewDNS, FOFA, Netlas, and Criminal IP all have per-day or per-second limits. The tool respects those limits but cannot run more queries than the account allows.
 
 ---
 

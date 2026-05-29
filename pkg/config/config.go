@@ -23,19 +23,20 @@ var defaultWeightsYAML []byte
 // weights file that mentions a name outside this set produces a warning,
 // not an error.
 var knownTechniques = map[string]struct{}{
-	"crtsh":          {},
-	"ct_fingerprint": {},
-	"dns_history":    {},
-	"spf_mx":         {},
-	"subdomain_enum": {},
-	"censys_cert":    {},
-	"shodan_cert":    {},
-	"fofa_cert":      {},
-	"netlas_cert":    {},
-	"host_header":    {},
-	"banner_grab":    {},
-	"error_page":     {},
-	"ipv6_probe":     {},
+	"crtsh":            {},
+	"ct_fingerprint":   {},
+	"dns_history":      {},
+	"spf_mx":           {},
+	"subdomain_enum":   {},
+	"censys_cert":      {},
+	"shodan_cert":      {},
+	"fofa_cert":        {},
+	"netlas_cert":      {},
+	"criminalip_asset": {},
+	"host_header":      {},
+	"banner_grab":      {},
+	"error_page":       {},
+	"ipv6_probe":       {},
 }
 
 // Weights maps technique name to its configured reliability weight in [0,1].
@@ -184,14 +185,16 @@ func LoadAPIKeys() techniques.APIKeys {
 		FOFAEmail:         os.Getenv("UNEARTH_FOFA_EMAIL"),
 		FOFAKey:           os.Getenv("UNEARTH_FOFA_KEY"),
 		NetlasAPIKey:      os.Getenv("UNEARTH_NETLAS_API_KEY"),
+		CriminalIPKey:     os.Getenv("UNEARTH_CRIMINALIP_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
-// Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas".
-// The "censys" entry is true when a Censys Platform PAT is present; the "fofa"
-// entry is true only when both the FOFA email and key are present; the
-// "netlas" entry is true when a Netlas API key is present. The legacy
+// Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
+// "criminalip". The "censys" entry is true when a Censys Platform PAT is
+// present; the "fofa" entry is true only when both the FOFA email and key are
+// present; the "netlas" entry is true when a Netlas API key is present; the
+// "criminalip" entry is true when a Criminal IP API key is present. The legacy
 // ID/secret pair is no longer consulted: the Censys Search v2 API it
 // authenticates is disabled for Free accounts and is sunsetting in 2026.
 func CredentialStatus(k techniques.APIKeys) map[string]bool {
@@ -202,5 +205,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"viewdns":        k.ViewDNSKey != "",
 		"fofa":           k.FOFAEmail != "" && k.FOFAKey != "",
 		"netlas":         k.NetlasAPIKey != "",
+		"criminalip":     k.CriminalIPKey != "",
 	}
 }

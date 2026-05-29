@@ -75,6 +75,8 @@ The server loads API keys from its process environment using the same variable n
 | `VIEWDNS_API_KEY` | `dns_history` (fallback) |
 | `SHODAN_API_KEY` | `shodan_cert` in `unearth_discover` |
 | `FOFA_EMAIL` + `FOFA_KEY` | `fofa_cert` in `unearth_discover` and `unearth_cert_fingerprint` (both required) |
+| `NETLAS_API_KEY` | `netlas_cert` in `unearth_discover` and `unearth_cert_fingerprint` |
+| `CRIMINALIP_API_KEY` | `criminalip_asset` in `unearth_discover` and `unearth_cert_fingerprint` |
 
 Keys are passed via the MCP client's `env` configuration block (see above) — the server never prompts for them.
 
@@ -123,7 +125,7 @@ Runs the full origin-discovery pipeline and returns ranked candidate IPs.
 
 ### `unearth_cert_fingerprint`
 
-Runs certificate-fingerprint pivot techniques. Always runs `ct_fingerprint` (keyless). Also runs `censys_cert`, `shodan_cert`, and `fofa_cert` when their API keys are present.
+Runs certificate-fingerprint pivot techniques. Always runs `ct_fingerprint` (keyless). Also runs `censys_cert`, `shodan_cert`, `fofa_cert`, `netlas_cert`, and `criminalip_asset` when their API keys are present.
 
 **Parameters:**
 
