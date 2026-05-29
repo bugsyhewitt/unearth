@@ -34,6 +34,7 @@ var knownTechniques = map[string]struct{}{
 	"netlas_cert":      {},
 	"criminalip_asset": {},
 	"binaryedge_cert":  {},
+	"leakix_cert":      {},
 	"host_header":      {},
 	"banner_grab":      {},
 	"error_page":       {},
@@ -210,18 +211,20 @@ func LoadAPIKeys() techniques.APIKeys {
 		NetlasAPIKey:      envFirst("NETLAS_API_KEY", "UNEARTH_NETLAS_API_KEY"),
 		CriminalIPKey:     envFirst("CRIMINALIP_API_KEY", "UNEARTH_CRIMINALIP_API_KEY"),
 		BinaryEdgeKey:     envFirst("BINARYEDGE_API_KEY", "UNEARTH_BINARYEDGE_API_KEY"),
+		LeakIXKey:         envFirst("LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
 // Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
-// "criminalip", "binaryedge". The "censys" entry is true when a Censys Platform
-// PAT is present; the "fofa" entry is true only when both the FOFA email and key
-// are present; the "netlas" entry is true when a Netlas API key is present; the
-// "criminalip" entry is true when a Criminal IP API key is present; the
-// "binaryedge" entry is true when a BinaryEdge API key is present. The legacy
-// ID/secret pair is no longer consulted: the Censys Search v2 API it
-// authenticates is disabled for Free accounts and is sunsetting in 2026.
+// "criminalip", "binaryedge", "leakix". The "censys" entry is true when a Censys
+// Platform PAT is present; the "fofa" entry is true only when both the FOFA email
+// and key are present; the "netlas" entry is true when a Netlas API key is
+// present; the "criminalip" entry is true when a Criminal IP API key is present;
+// the "binaryedge" entry is true when a BinaryEdge API key is present; the
+// "leakix" entry is true when a LeakIX API key is present. The legacy ID/secret
+// pair is no longer consulted: the Censys Search v2 API it authenticates is
+// disabled for Free accounts and is sunsetting in 2026.
 func CredentialStatus(k techniques.APIKeys) map[string]bool {
 	return map[string]bool{
 		"censys":         k.CensysPlatformPAT != "",
@@ -232,5 +235,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"netlas":         k.NetlasAPIKey != "",
 		"criminalip":     k.CriminalIPKey != "",
 		"binaryedge":     k.BinaryEdgeKey != "",
+		"leakix":         k.LeakIXKey != "",
 	}
 }

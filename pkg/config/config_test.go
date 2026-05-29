@@ -180,6 +180,8 @@ var allCredentialEnvVars = []string{
 	"FOFA_KEY", "UNEARTH_FOFA_KEY",
 	"NETLAS_API_KEY", "UNEARTH_NETLAS_API_KEY",
 	"CRIMINALIP_API_KEY", "UNEARTH_CRIMINALIP_API_KEY",
+	"BINARYEDGE_API_KEY", "UNEARTH_BINARYEDGE_API_KEY",
+	"LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY",
 }
 
 // clearCredentialEnv unsets every credential variable for the duration of the

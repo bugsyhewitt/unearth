@@ -465,6 +465,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.CriminalIPKey != ""
 	case "binaryedge_cert":
 		return k.BinaryEdgeKey != ""
+	case "leakix_cert":
+		return k.LeakIXKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we

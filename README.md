@@ -77,6 +77,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `netlas_cert` | Passive | Yes — `NETLAS_API_KEY` | 0.75 | Netlas certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Netlas's response index; indexes domains alongside IPs and has a free tier with a daily allowance |
 | `criminalip_asset` | Passive | Yes — `CRIMINALIP_API_KEY` | 0.70 | Criminal IP certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Criminal IP's 4.2B+ asset index; its own AI-scored scan corpus surfaces origins absent from the other engines, and a free tier with a monthly allowance keeps it reachable |
 | `binaryedge_cert` | Passive | Yes — `BINARYEDGE_API_KEY` | 0.72 | BinaryEdge certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-1 against BinaryEdge's continuous scan grid; its independent corpus surfaces origins absent from the other engines, and a free tier with a monthly allowance keeps it reachable |
+| `leakix_cert` | Passive | Yes — `LEAKIX_API_KEY` | 0.71 | LeakIX certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-1 against LeakIX's continuous scan/exposure index; its independent corpus surfaces origins absent from the other engines, and a free tier with a daily allowance keeps it reachable |
 | `favicon_hash` | Active | Yes — `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT` | 0.75 | Favicon MurmurHash3 pivot — fetches `/favicon.ico`, queries Shodan/Censys for hosts sharing the same favicon |
 | `asn_sweep` | Active | No | 0.70 | BGPView ASN-range sweep — resolves target DNS to find its ASN, then probes live IPs across all ASN prefixes with host-header injection to find the real origin |
 | `jarm_fingerprint` | Active | No | 0.70 | JARM TLS active fingerprinting — sends 10 crafted ClientHellos to candidate IPs, hashes the handshake response into a 62-char fingerprint, and flags candidates whose JARM matches the target's (rejecting known CDN-edge signatures) |
@@ -104,6 +105,7 @@ export FOFA_KEY="your-fofa-key"
 export NETLAS_API_KEY="your-netlas-key"
 export CRIMINALIP_API_KEY="your-criminalip-key"
 export BINARYEDGE_API_KEY="your-binaryedge-key"
+export LEAKIX_API_KEY="your-leakix-key"
 ```
 
 The tool announces which keys are loaded (or absent) on every run. Key-required techniques are silently skipped when the key is missing.
@@ -119,6 +121,8 @@ The tool announces which keys are loaded (or absent) on every run. Key-required 
 > **Criminal IP note:** `criminalip_asset` needs `CRIMINALIP_API_KEY` (generated from your Criminal IP account's My Information → API Key page); without it the technique is skipped. Criminal IP offers a free tier with a monthly request allowance — when that allowance is exhausted, or the plan lacks the banner-search capability, the API answers with a quota/permission message (often `HTTP 200` carrying a non-200 `status` field), which the technique treats as a clean tier-insufficient skip rather than a failure. Criminal IP runs its own AI-scored scan corpus over 4.2B+ IPs, so it surfaces origins that may be absent from Shodan, Censys, FOFA, and Netlas — coverage diversity, not redundancy.
 
 > **BinaryEdge note:** `binaryedge_cert` needs `BINARYEDGE_API_KEY` (generated from your BinaryEdge account's Account → API Access page); without it the technique is skipped. BinaryEdge offers a free tier with a monthly request allowance — when that allowance is exhausted, or the plan lacks the search capability, the API answers `HTTP 429`/`403` (or a quota/permission message), which the technique treats as a clean tier-insufficient skip rather than a failure. Unlike the other certificate-pivot engines, BinaryEdge indexes the leaf cert's **SHA-1** fingerprint (the same flavor Shodan uses), and it runs an independent continuous scan grid, so it surfaces origins that may be absent from Shodan, Censys, FOFA, Netlas, and Criminal IP — coverage diversity, not redundancy.
+
+> **LeakIX note:** `leakix_cert` needs `LEAKIX_API_KEY` (generated from your LeakIX account's Settings → API key page); without it the technique is skipped. LeakIX offers a free tier with a daily request allowance — when that allowance is exhausted, or the plan lacks the search capability, the API answers `HTTP 429`/`403` (or a quota/permission message, sometimes `HTTP 200` carrying an `error`/`message` field), which the technique treats as a clean tier-insufficient skip rather than a failure. Like Shodan and BinaryEdge, LeakIX indexes the leaf cert's **SHA-1** fingerprint, and it runs an independent continuous scan/exposure index, so it surfaces origins that may be absent from Shodan, Censys, FOFA, Netlas, Criminal IP, and BinaryEdge — coverage diversity, not redundancy.
 
 ---
 

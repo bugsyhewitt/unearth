@@ -103,6 +103,12 @@ type APIKeys struct {
 	// technique. Generated from a BinaryEdge account's Account → API Access
 	// page. BinaryEdge offers a free tier with a monthly request allowance.
 	BinaryEdgeKey string
+
+	// LeakIXKey is the API key for the LeakIX (leakix.net) search API.
+	// Required to run leakix_cert; absent skips the technique. Generated
+	// from a LeakIX account's Settings → API key page. LeakIX offers a free
+	// tier with a daily request allowance.
+	LeakIXKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.
