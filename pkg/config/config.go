@@ -36,6 +36,7 @@ var knownTechniques = map[string]struct{}{
 	"binaryedge_cert":  {},
 	"leakix_cert":      {},
 	"fullhunt_asset":   {},
+	"zoomeye_asset":    {},
 	"host_header":      {},
 	"banner_grab":      {},
 	"error_page":       {},
@@ -214,12 +215,14 @@ func LoadAPIKeys() techniques.APIKeys {
 		BinaryEdgeKey:     envFirst("BINARYEDGE_API_KEY", "UNEARTH_BINARYEDGE_API_KEY"),
 		LeakIXKey:         envFirst("LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY"),
 		FullHuntKey:       envFirst("FULLHUNT_API_KEY", "UNEARTH_FULLHUNT_API_KEY"),
+		ZoomEyeKey:        envFirst("ZOOMEYE_API_KEY", "UNEARTH_ZOOMEYE_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
 // Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
-// "criminalip", "binaryedge", "leakix", "fullhunt". The "censys" entry is true when a Censys
+// "criminalip", "binaryedge", "leakix", "fullhunt", "zoomeye". The "zoomeye"
+// entry is true when a ZoomEye API key is present. The "censys" entry is true when a Censys
 // Platform PAT is present; the "fofa" entry is true only when both the FOFA email
 // and key are present; the "netlas" entry is true when a Netlas API key is
 // present; the "criminalip" entry is true when a Criminal IP API key is present;
@@ -240,5 +243,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"binaryedge":     k.BinaryEdgeKey != "",
 		"leakix":         k.LeakIXKey != "",
 		"fullhunt":       k.FullHuntKey != "",
+		"zoomeye":        k.ZoomEyeKey != "",
 	}
 }

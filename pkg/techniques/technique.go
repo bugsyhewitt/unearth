@@ -115,6 +115,14 @@ type APIKeys struct {
 	// Generated from a FullHunt account's API key page. FullHunt offers a free
 	// tier with a monthly request allowance.
 	FullHuntKey string
+
+	// ZoomEyeKey is the API key for the ZoomEye (zoomeye.org) cyberspace
+	// search API. Required to run zoomeye_asset; absent skips the technique.
+	// Generated from a ZoomEye account's Profile → API Key page. ZoomEye
+	// offers a free tier with a monthly request allowance and indexes a
+	// markedly APAC-weighted slice of the internet, complementing the
+	// US-centric Censys/Shodan backends.
+	ZoomEyeKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

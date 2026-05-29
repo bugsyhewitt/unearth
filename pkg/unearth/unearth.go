@@ -469,6 +469,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.LeakIXKey != ""
 	case "fullhunt_asset":
 		return k.FullHuntKey != ""
+	case "zoomeye_asset":
+		return k.ZoomEyeKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we
