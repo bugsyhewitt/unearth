@@ -110,6 +110,15 @@ type APIKeys struct {
 	// tier with a daily request allowance.
 	LeakIXKey string
 
+	// OnypheKey is the API key for the Onyphe (onyphe.io) datascan search
+	// API. Required to run onyphe_cert; absent skips the technique. Generated
+	// from an Onyphe account's API page (https://www.onyphe.io/auth/api).
+	// Onyphe offers a free tier with a request allowance; its continuous
+	// internet-wide datascan corpus is meaningfully European-weighted and
+	// overlaps only partially with Shodan, Censys, FOFA, Netlas, Criminal
+	// IP, BinaryEdge, and LeakIX.
+	OnypheKey string
+
 	// FullHuntKey is the API key for the FullHunt (fullhunt.io) attack-surface
 	// API. Required to run fullhunt_asset; absent skips the technique.
 	// Generated from a FullHunt account's API key page. FullHunt offers a free

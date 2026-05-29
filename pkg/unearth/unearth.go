@@ -467,6 +467,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.BinaryEdgeKey != ""
 	case "leakix_cert":
 		return k.LeakIXKey != ""
+	case "onyphe_cert":
+		return k.OnypheKey != ""
 	case "fullhunt_asset":
 		return k.FullHuntKey != ""
 	case "zoomeye_asset":
