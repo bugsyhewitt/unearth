@@ -600,3 +600,96 @@ func TestClassifyHeaders_GoogleCDN(t *testing.T) {
 		}
 	})
 }
+
+// ── StackPath / Highwinds ─────────────────────────────────────────────────────
+
+func TestIsCDNIP_StackPath(t *testing.T) {
+	// 151.139.0.1 is inside 151.139.0.0/16, a Highwinds / StackPath range.
+	addr := netip.MustParseAddr("151.139.0.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("151.139.0.1 should be StackPath CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "stackpath" {
+		t.Errorf("ProviderForIP(151.139.0.1) = %q, want stackpath", got)
+	}
+}
+
+func TestIsCDNIP_StackPath_Range2(t *testing.T) {
+	// 205.185.216.10 is inside 205.185.192.0/18, another StackPath range.
+	addr := netip.MustParseAddr("205.185.216.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("205.185.216.10 should be StackPath CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "stackpath" {
+		t.Errorf("ProviderForIP(205.185.216.10) = %q, want stackpath", got)
+	}
+}
+
+func TestIsCDNIP_StackPath_IPv6(t *testing.T) {
+	// 2606:2800::1 is inside 2606:2800::/32, a StackPath IPv6 range.
+	addr := netip.MustParseAddr("2606:2800::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2606:2800::1 should be StackPath CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "stackpath" {
+		t.Errorf("ProviderForIP(2606:2800::1) = %q, want stackpath", got)
+	}
+}
+
+func TestProviderByDNS_StackPath(t *testing.T) {
+	cases := map[string]string{
+		"site.stackpathcdn.com": "stackpath",
+		"foo.stackpathdns.com":  "stackpath",
+		"edge.hwcdn.net":        "stackpath",
+		"assets.netdna-cdn.com": "stackpath",
+		"secure.netdna-ssl.com": "stackpath",
+		"cdn.netdna.com":        "stackpath",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_StackPath(t *testing.T) {
+	t.Run("x-hw", func(t *testing.T) {
+		h := http.Header{"X-Hw": []string{"1709145600.cds123.ord1.h"}}
+		if got := classifyHeaders(h); got != "stackpath" {
+			t.Errorf("classifyHeaders with x-hw = %q, want stackpath", got)
+		}
+	})
+	t.Run("server-netdna-cache", func(t *testing.T) {
+		h := http.Header{"Server": []string{"NetDNA-cache/2.2"}}
+		if got := classifyHeaders(h); got != "stackpath" {
+			t.Errorf("classifyHeaders with server NetDNA-cache = %q, want stackpath", got)
+		}
+	})
+	t.Run("x-cdn-stackpath", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "Stackpath")
+		if got := classifyHeaders(h); got != "stackpath" {
+			t.Errorf("classifyHeaders with x-cdn stackpath = %q, want stackpath", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{
+			"X-Hw":   []string{"ref123"},
+			"Server": []string{"NetDNA-cache/2.2"},
+		}
+		sigs := collectHeaderSignals(h)
+		var sawHW, sawServer bool
+		for _, s := range sigs {
+			switch s {
+			case "header x-hw present (stackpath/highwinds)":
+				sawHW = true
+			case "header server: netdna-cache (stackpath)":
+				sawServer = true
+			}
+		}
+		if !sawHW || !sawServer {
+			t.Errorf("expected stackpath signals, got %v", sigs)
+		}
+	})
+}

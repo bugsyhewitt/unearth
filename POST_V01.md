@@ -460,10 +460,22 @@ The CDN origin-discovery space in mid-2026:
 
 3. **Akamai**, **Imperva (Incapsula)**, and **Azure Front Door** were the
    critical CDN detection gaps in unearth's filter — all now closed. The CDN
-   registry covers Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva, and
-   Azure Front Door. The remaining notable enterprise front-ends not yet modeled
-   are Google Cloud CDN and StackPath/Highwinds — candidate follow-ups for the
-   next coverage pass.
+   registry covers Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva,
+   Azure Front Door, Google Cloud CDN, and StackPath/Highwinds. There are no
+   remaining first-tier enterprise front-ends unmodeled; further coverage passes
+   would target niche / regional CDNs (e.g. BunnyCDN, KeyCDN, Gcore, CDN77,
+   Tencent EdgeOne, Alibaba/Aliyun CDN).
+
+   > StackPath/Highwinds shipped Phase 2, 2026-05-28 in `pkg/cdn/cdn.go`
+   > (`buildStackPath`, `isStackPathHeaders`) with embedded
+   > `pkg/cdn/data/stackpath-v4.txt` / `stackpath-v6.txt` snapshots sourced from
+   > the Highwinds ASNs AS20446 / AS33438 (the former NetDNA / MaxCDN network).
+   > Detection signals: `stackpathcdn.com` / `stackpathdns.com` / `hwcdn.net` /
+   > `netdna-cdn.com` / `netdna-ssl.com` / `netdna.com` CNAME suffixes; the
+   > proprietary `X-HW` Highwinds edge header; the legacy `Server: NetDNA-cache`
+   > marker; and an `X-CDN: Stackpath` value. Self-contained: no API key, no new
+   > dependency, pure data + classification. Mirrors the `buildGoogleCDN()` /
+   > `buildAzureFrontDoor()` pattern exactly.
 
    > Azure Front Door shipped Phase 2, 2026-05-28 in `pkg/cdn/cdn.go`
    > (`buildAzureFrontDoor`, `isAzureFrontDoorHeaders`) with embedded

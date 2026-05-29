@@ -5,9 +5,9 @@
 // CDN, because they cannot be the real origin.
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
-// (Incapsula), Azure Front Door, and Google Cloud CDN. The code is structured
-// so adding further providers is a matter of dropping in a Provider value with
-// detection markers and an embedded range snapshot.
+// (Incapsula), Azure Front Door, Google Cloud CDN, and StackPath/Highwinds.
+// The code is structured so adding further providers is a matter of dropping
+// in a Provider value with detection markers and an embedded range snapshot.
 package cdn
 
 import (
@@ -77,6 +77,12 @@ var googleCDNV4Raw []byte
 
 //go:embed data/googlecdn-v6.txt
 var googleCDNV6Raw []byte
+
+//go:embed data/stackpath-v4.txt
+var stackpathV4Raw []byte
+
+//go:embed data/stackpath-v6.txt
+var stackpathV6Raw []byte
 
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
@@ -149,6 +155,12 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Google Cloud CDN ranges: %v", err))
 	}
 	providers = append(providers, googlecdn)
+
+	stackpath, err := buildStackPath()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded StackPath ranges: %v", err))
+	}
+	providers = append(providers, stackpath)
 }
 
 func buildFastly() (*Provider, error) {
@@ -268,6 +280,30 @@ func buildGoogleCDN() (*Provider, error) {
 			".googleusercontent.com",
 			".storage.googleapis.com",
 			".l.google.com",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildStackPath() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(stackpathV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("stackpath v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(stackpathV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("stackpath v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "stackpath",
+		dnsHints: []string{
+			".stackpathcdn.com",
+			".stackpathdns.com",
+			".hwcdn.net",
+			".netdna-cdn.com",
+			".netdna-ssl.com",
+			".netdna.com",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -536,7 +572,29 @@ func classifyHeaders(h http.Header) string {
 	if isGoogleCDNHeaders(h) {
 		return "googlecdn"
 	}
+	if isStackPathHeaders(h) {
+		return "stackpath"
+	}
 	return ""
+}
+
+// isStackPathHeaders reports whether the response headers carry a StackPath /
+// Highwinds (formerly NetDNA / MaxCDN) signature. StackPath edge nodes stamp
+// the proprietary X-HW Highwinds tracking header on every edge response, and
+// the legacy NetDNA/MaxCDN edge cache still advertises "Server: NetDNA-cache"
+// on many POPs. An "X-CDN: Stackpath" marker also appears on some
+// configurations.
+func isStackPathHeaders(h http.Header) bool {
+	if h.Get("X-HW") != "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "netdna-cache") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "stackpath") {
+		return true
+	}
+	return false
 }
 
 // isGoogleCDNHeaders reports whether the response headers carry a Google Front
@@ -651,6 +709,15 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if h.Get("X-Goog-Hash") != "" || h.Get("X-Goog-Generation") != "" {
 		out = append(out, "header x-goog-* present (google cloud cdn)")
+	}
+	if h.Get("X-HW") != "" {
+		out = append(out, "header x-hw present (stackpath/highwinds)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "netdna-cache") {
+		out = append(out, "header server: netdna-cache (stackpath)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "stackpath") {
+		out = append(out, "header x-cdn mentions stackpath")
 	}
 	return out
 }

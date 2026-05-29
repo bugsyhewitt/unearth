@@ -1,0 +1,6 @@
+# StackPath / Highwinds CDN IPv6 ranges — captured 2026-05-28
+# Source: published Highwinds / StackPath edge prefixes via the Highwinds
+#   ASNs AS20446 (Highwinds Network Group / StackPath CDN) and AS33438.
+#   https://bgp.he.net/AS20446 / https://bgp.he.net/AS33438
+2606:2800::/32
+2606:6700::/32

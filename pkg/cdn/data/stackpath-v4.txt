@@ -1,0 +1,17 @@
+# StackPath / Highwinds CDN IPv4 ranges — captured 2026-05-28
+# StackPath (formerly Highwinds Network Group / NetDNA / MaxCDN) operates its
+# global edge network under the Highwinds ASNs. The CDN was built on the
+# Highwinds acquisition and most edge POPs still announce from these blocks.
+# Source: published Highwinds / StackPath edge prefixes via the Highwinds
+#   ASNs AS20446 (Highwinds Network Group / StackPath CDN) and AS33438
+#   (StackPath LLC, formerly Highwinds/NetDNA).
+#   https://bgp.he.net/AS20446 / https://bgp.he.net/AS33438
+151.139.0.0/16
+205.185.192.0/18
+205.234.160.0/19
+192.230.64.0/18
+69.16.128.0/19
+77.111.240.0/22
+146.66.152.0/22
+180.179.40.0/22
+198.232.124.0/22
