@@ -9,11 +9,10 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"math/bits"
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/spaolacci/murmur3"
 
 	"github.com/unearth-tool/unearth/pkg/cache"
 	"github.com/unearth-tool/unearth/pkg/cdn"
@@ -112,7 +111,70 @@ func (faviconHashTechnique) Run(ctx context.Context, target string, opts RunOpti
 // that base64 text. Shodan, Censys, FOFA and ZoomEye all key on this value.
 func faviconMMH3(raw []byte) int32 {
 	b64 := base64EncodeWrapped(raw)
-	return int32(murmur3.Sum32([]byte(b64)))
+	return int32(murmurHash3X86_32([]byte(b64), 0))
+}
+
+// murmurHash3X86_32 is a self-contained, allocation-free implementation of
+// MurmurHash3's x86_32 variant — the exact algorithm Shodan, Censys, FOFA and
+// ZoomEye use to index favicons. It replaces github.com/spaolacci/murmur3,
+// whose v1.1.0 release performs unsafe pointer arithmetic that trips Go's
+// -race / checkptr instrumentation ("pointer arithmetic result points to
+// invalid allocation") and kept CI red (prob-unearth-murmur3-race-001).
+//
+// This version reads the input with encoding/binary-style byte assembly only,
+// so it is pointer-safe and produces byte-for-byte identical hashes. The
+// locked TestFaviconHash_MMH3Convention value (-384845062) guards that
+// equivalence against any future regression.
+func murmurHash3X86_32(data []byte, seed uint32) uint32 {
+	const (
+		c1 = 0xcc9e2d51
+		c2 = 0x1b873593
+	)
+
+	h := seed
+	nblocks := len(data) / 4
+
+	// Body: process 4-byte little-endian blocks.
+	for i := 0; i < nblocks; i++ {
+		b := data[i*4:]
+		k := uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
+
+		k *= c1
+		k = bits.RotateLeft32(k, 15)
+		k *= c2
+
+		h ^= k
+		h = bits.RotateLeft32(h, 13)
+		h = h*5 + 0xe6546b64
+	}
+
+	// Tail: remaining 1-3 bytes.
+	var k uint32
+	tail := data[nblocks*4:]
+	switch len(tail) {
+	case 3:
+		k ^= uint32(tail[2]) << 16
+		fallthrough
+	case 2:
+		k ^= uint32(tail[1]) << 8
+		fallthrough
+	case 1:
+		k ^= uint32(tail[0])
+		k *= c1
+		k = bits.RotateLeft32(k, 15)
+		k *= c2
+		h ^= k
+	}
+
+	// Finalization.
+	h ^= uint32(len(data))
+	h ^= h >> 16
+	h *= 0x85ebca6b
+	h ^= h >> 13
+	h *= 0xc2b2ae35
+	h ^= h >> 16
+
+	return h
 }
 
 // base64EncodeWrapped mirrors Python's base64.encodebytes: standard base64,

@@ -4,7 +4,6 @@ go 1.23.0
 
 require (
 	github.com/mark3labs/mcp-go v0.48.0
-	github.com/spaolacci/murmur3 v1.1.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/time v0.5.0
 	gopkg.in/yaml.v3 v3.0.1

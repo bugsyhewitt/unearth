@@ -25,6 +25,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Replaced the `github.com/spaolacci/murmur3` dependency in `favicon_hash` with a self-contained, pointer-safe pure-Go MurmurHash3 x86_32 implementation. The vendored library's v1.1.0 release performed unsafe pointer arithmetic that tripped Go's `-race` / `checkptr` instrumentation (`fatal error: checkptr: pointer arithmetic result points to invalid allocation`), crashing the favicon test under the race detector and keeping CI red. The new implementation reads input with byte-assembly only, produces byte-for-byte identical hashes (the locked Shodan-convention value `-384845062` and the public MurmurHash3 reference vectors both pass), and removes a third-party dependency. `go test -race ./...` is now green.
 - Removed an erroneous prefix (`192.230.64.0/18`) from the Imperva (Incapsula) range snapshot. That block is announced from AS33438 (StackPath/Highwinds) and is correctly claimed by the StackPath snapshot; its presence in the Imperva list made StackPath traffic in that range unreachable under the first-match-wins `ProviderForIP` lookup. A new `TestNoDuplicatePrefixAcrossProviders` registry-wide guard test now prevents any prefix from being claimed by two providers.
 
 ## [1.0.0] — 2026-05-17

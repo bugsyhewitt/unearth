@@ -41,6 +41,31 @@ func TestFaviconHash_MMH3Convention(t *testing.T) {
 	}
 }
 
+func TestMurmurHash3X86_32_CanonicalVectors(t *testing.T) {
+	// Lock the pure-Go MurmurHash3 x86_32 implementation against the public
+	// reference vectors. These guard equivalence with the algorithm Shodan,
+	// Censys, FOFA and ZoomEye index on, independent of the favicon base64
+	// wrapping. A mismatch here means our hash diverged from every search
+	// engine's index and pivots would silently return nothing.
+	cases := []struct {
+		in   string
+		seed uint32
+		want uint32
+	}{
+		{"", 0, 0x00000000},
+		{"", 0x9747b28c, 0xebb6c228},
+		{"test", 0, 0xba6bd213},
+		{"Hello, world!", 0, 0xc0363e43},
+		{"Hello, world!", 0x9747b28c, 0x24884cba},
+		{"aaaa", 0x9747b28c, 0x5a97808a},
+	}
+	for _, c := range cases {
+		if got := murmurHash3X86_32([]byte(c.in), c.seed); got != c.want {
+			t.Errorf("murmurHash3X86_32(%q, %#x) = %#x, want %#x", c.in, c.seed, got, c.want)
+		}
+	}
+}
+
 func TestFaviconHash_NoKeys_Skip(t *testing.T) {
 	// Neither SHODAN nor CENSYS key present → graceful skip, no fetch.
 	fetched := false
