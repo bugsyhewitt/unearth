@@ -97,6 +97,12 @@ type APIKeys struct {
 	// Key page. Criminal IP offers a free tier with a monthly request
 	// allowance.
 	CriminalIPKey string
+
+	// BinaryEdgeKey is the API key for the BinaryEdge (binaryedge.io)
+	// search API. Required to run binaryedge_cert; absent skips the
+	// technique. Generated from a BinaryEdge account's Account → API Access
+	// page. BinaryEdge offers a free tier with a monthly request allowance.
+	BinaryEdgeKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

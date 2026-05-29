@@ -459,6 +459,12 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.ShodanAPIKey != ""
 	case "fofa_cert":
 		return k.FOFAEmail != "" && k.FOFAKey != ""
+	case "netlas_cert":
+		return k.NetlasAPIKey != ""
+	case "criminalip_asset":
+		return k.CriminalIPKey != ""
+	case "binaryedge_cert":
+		return k.BinaryEdgeKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we

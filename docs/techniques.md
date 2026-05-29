@@ -149,6 +149,22 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `binaryedge_cert`
+
+**Tier:** Passive | **Weight:** 0.72 | **API key:** `BINARYEDGE_API_KEY`
+
+**What it does:** Fingerprints the target's current TLS leaf certificate (SHA-1), then queries BinaryEdge (`binaryedge.io`) for every scanned service whose certificate carries that fingerprint. Non-CDN hits are surfaced as origin candidates — the same cert-pivot idea as `censys_cert` / `shodan_cert` / `fofa_cert` / `netlas_cert` / `criminalip_asset`, against a sixth independent index.
+
+**Data source:** BinaryEdge host search API (`https://api.binaryedge.io/v2/query/search`). The query (`ssl.cert.as_dict.fingerprint.sha1:<sha1>`) is passed in the `query` parameter and the key authenticates via the `X-Key` header. Each result carries an `events[].target.ip` field, which is parsed into a candidate (CDN edge IPs are filtered). Results are paginated by the `page` parameter until the reported `total` is covered.
+
+**Why it complements the other engines:** BinaryEdge runs its own continuous internet-wide scan grid, overlapping only partially with Shodan, Censys, FOFA, Netlas, and Criminal IP. Notably, BinaryEdge indexes the leaf cert's **SHA-1** fingerprint (the same flavor Shodan uses) rather than the SHA-256 the Censys/FOFA/Netlas/Criminal IP pivots rely on, so it both broadens reach and corroborates the SHA-1 pivot from a second source. A misconfigured origin that leaks its real certificate may surface in BinaryEdge when it is absent from the others — the value is coverage diversity, not redundancy.
+
+**Key requirement:** `BINARYEDGE_API_KEY` must be present; without it the technique skips gracefully (exactly like the other keyed cert pivots). BinaryEdge offers a free tier with a monthly request allowance — when that allowance is exhausted, or the plan lacks the search capability, the API answers `HTTP 429`/`403` (or a quota/permission message), which the technique treats as a clean tier-insufficient skip rather than a run failure. An invalid key/token degrades to a clean missing-key skip.
+
+**Limitations:** BinaryEdge's free tier covers the host search used here; some operators and result depth are reserved for paid plans. Pagination follows the API's reported `total`, so extremely large certificate-sharing sets consume more of the monthly allowance.
+
+---
+
 ### `dns_history`
 
 **Tier:** Passive | **Weight:** 0.65 | **API key:** `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY`
