@@ -7,7 +7,7 @@
 
 **Unearth the real origin server hiding behind a CDN.**
 
-`unearth` discovers origin IPs by running sixteen recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, email `Received:`-header mining, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
+`unearth` discovers origin IPs by running seventeen recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, email `Received:`-header mining, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
 
 ---
 
@@ -73,6 +73,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `host_header` | Active | No | 0.85 | HTTP host-header bypass: connects to candidate IPs with `Host: target` |
 | `banner_grab` | Active | No | 0.45 | SSH and HTTP banner fingerprinting of candidate IPs |
 | `shodan_cert` | Active | Yes — `SHODAN_API_KEY` | 0.85 | Shodan certificate-fingerprint search |
+| `fofa_cert` | Passive | Yes — `FOFA_EMAIL` + `FOFA_KEY` | 0.80 | FOFA certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against FOFA's 4B+ asset index for broader APAC coverage than Shodan/Censys |
 | `favicon_hash` | Active | Yes — `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT` | 0.75 | Favicon MurmurHash3 pivot — fetches `/favicon.ico`, queries Shodan/Censys for hosts sharing the same favicon |
 | `asn_sweep` | Active | No | 0.70 | BGPView ASN-range sweep — resolves target DNS to find its ASN, then probes live IPs across all ASN prefixes with host-header injection to find the real origin |
 | `jarm_fingerprint` | Active | No | 0.70 | JARM TLS active fingerprinting — sends 10 crafted ClientHellos to candidate IPs, hashes the handshake response into a 62-char fingerprint, and flags candidates whose JARM matches the target's (rejecting known CDN-edge signatures) |
@@ -95,11 +96,15 @@ export CENSYS_PLATFORM_PAT="your-key"
 export SECURITYTRAILS_API_KEY="your-key"
 export VIEWDNS_API_KEY="your-key"
 export SHODAN_API_KEY="your-key"
+export FOFA_EMAIL="you@example.com"
+export FOFA_KEY="your-fofa-key"
 ```
 
 The tool announces which keys are loaded (or absent) on every run. Key-required techniques are silently skipped when the key is missing.
 
 > **Censys note:** `censys_cert` uses the Censys Platform API (PAT-based). The Censys Legacy API is not supported. Free-tier Platform accounts may return `403 Tier Insufficient` for some queries — the technique degrades gracefully.
+
+> **FOFA note:** `fofa_cert` needs **both** `FOFA_EMAIL` and `FOFA_KEY` (generated from your FOFA account's Personal Center → API page); with only one set the technique is skipped. FOFA's free tier exposes the certificate search; when an account is out of query quota FOFA answers `HTTP 200` with an `error` flag, which the technique treats as a clean tier-insufficient skip rather than a failure. FOFA's heavier APAC scan coverage complements the US-centric Shodan/Censys indexes — its value is reach, not redundancy.
 
 ---
 

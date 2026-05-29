@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -105,24 +106,26 @@ func TestAsnSweep_BGPViewPrefixLookupReturnsPrefixes(t *testing.T) {
 	)
 
 	baselineBody := strings.Repeat("abc", 200)
-	probeCount := 0
+	// asn_sweep probes the prefix IPs concurrently, so this counter is
+	// incremented from multiple goroutines — use atomic to stay race-free.
+	var probeCount atomic.Int64
 	rt := &hostHeaderStubRT{
 		baselineBody: baselineBody,
 		byHost: map[string]func(*http.Request) (*http.Response, error){
 			"203.0.113.4": func(req *http.Request) (*http.Response, error) {
-				probeCount++
+				probeCount.Add(1)
 				return stubResponse(200, baselineBody), nil
 			},
 			"203.0.113.5": func(_ *http.Request) (*http.Response, error) {
-				probeCount++
+				probeCount.Add(1)
 				return stubResponse(200, "different content"), nil
 			},
 			"203.0.113.6": func(_ *http.Request) (*http.Response, error) {
-				probeCount++
+				probeCount.Add(1)
 				return stubResponse(200, "different content"), nil
 			},
 			"203.0.113.7": func(_ *http.Request) (*http.Response, error) {
-				probeCount++
+				probeCount.Add(1)
 				return stubResponse(200, "different content"), nil
 			},
 		},

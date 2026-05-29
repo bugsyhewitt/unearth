@@ -457,6 +457,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.SecurityTrailsKey != "" || k.ViewDNSKey != ""
 	case "shodan_cert":
 		return k.ShodanAPIKey != ""
+	case "fofa_cert":
+		return k.FOFAEmail != "" && k.FOFAKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we

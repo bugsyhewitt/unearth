@@ -105,6 +105,22 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `fofa_cert`
+
+**Tier:** Passive | **Weight:** 0.80 | **API key:** `FOFA_EMAIL` + `FOFA_KEY`
+
+**What it does:** Fingerprints the target's current TLS leaf certificate (SHA-256), then queries FOFA (`fofa.info`) for every host that serves a certificate containing that fingerprint. Non-CDN hits are surfaced as origin candidates — the same cert-pivot idea as `censys_cert` / `shodan_cert`, against a different index.
+
+**Data source:** FOFA search API (`https://fofa.info/api/v1/search/all`). The query (`cert="<sha256>"`) is base64-encoded into the `qbase64` parameter; the email + key pair authenticate as query parameters. The request asks for the single `ip` field, so each result row is one host address (a trailing `:port` is stripped before parsing).
+
+**Why it complements Censys/Shodan:** Shodan and Censys are both US-centric in scanning focus. FOFA indexes 4B+ assets with substantially heavier APAC coverage, so a meaningful fraction of targets hosted in Asia appear in FOFA but not in Shodan/Censys. The value is reach, not redundancy — and a FOFA hit corroborating a Censys/Shodan hit on the same fingerprint raises confidence under the noisy-OR ranking.
+
+**Key requirement:** Both `FOFA_EMAIL` and `FOFA_KEY` must be present; with either missing the technique skips gracefully (exactly like `censys_cert` / `shodan_cert`). When a FOFA account is out of query quota the API answers `HTTP 200` with an `error` flag and a quota message — the technique treats that as a clean tier-insufficient skip, not a run failure.
+
+**Limitations:** FOFA's certificate match is a substring match against the indexed certificate text rather than a structured fingerprint field, so a hit means the fingerprint hex appears in the cert FOFA indexed for that host. Free-tier accounts are quota-limited and may not return all pages; this technique fetches a single page of up to 100 results to stay within free-tier budgets.
+
+---
+
 ### `dns_history`
 
 **Tier:** Passive | **Weight:** 0.65 | **API key:** `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY`

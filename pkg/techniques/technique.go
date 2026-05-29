@@ -77,6 +77,13 @@ type APIKeys struct {
 	ShodanAPIKey      string
 	SecurityTrailsKey string
 	ViewDNSKey        string
+
+	// FOFAEmail and FOFAKey are the credential pair for the FOFA
+	// (fofa.info) search API. Both are required to run fofa_cert; either
+	// one absent skips the technique. The pair is generated from a FOFA
+	// account's Personal Center → API page.
+	FOFAEmail string
+	FOFAKey   string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

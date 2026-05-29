@@ -6,6 +6,7 @@ weights:
   subdomain_enum: 0.35
   censys_cert: 0.90
   shodan_cert: 0.85
+  fofa_cert: 0.80
   host_header: 0.85
   banner_grab: 0.45
   error_page: 0.60

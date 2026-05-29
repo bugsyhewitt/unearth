@@ -30,6 +30,7 @@ var knownTechniques = map[string]struct{}{
 	"subdomain_enum": {},
 	"censys_cert":    {},
 	"shodan_cert":    {},
+	"fofa_cert":      {},
 	"host_header":    {},
 	"banner_grab":    {},
 	"error_page":     {},
@@ -179,12 +180,15 @@ func LoadAPIKeys() techniques.APIKeys {
 		ShodanAPIKey:      os.Getenv("UNEARTH_SHODAN_API_KEY"),
 		SecurityTrailsKey: os.Getenv("UNEARTH_SECURITYTRAILS_API_KEY"),
 		ViewDNSKey:        os.Getenv("UNEARTH_VIEWDNS_API_KEY"),
+		FOFAEmail:         os.Getenv("UNEARTH_FOFA_EMAIL"),
+		FOFAKey:           os.Getenv("UNEARTH_FOFA_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
-// Keys: "censys", "shodan", "securitytrails", "viewdns". The "censys" entry
-// is true when a Censys Platform PAT is present. The legacy ID/secret pair
+// Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa". The "censys"
+// entry is true when a Censys Platform PAT is present; the "fofa" entry is
+// true only when both the FOFA email and key are present. The legacy ID/secret pair
 // is no longer consulted: the Censys Search v2 API it authenticates is
 // disabled for Free accounts and is sunsetting in 2026.
 func CredentialStatus(k techniques.APIKeys) map[string]bool {
@@ -193,5 +197,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"shodan":         k.ShodanAPIKey != "",
 		"securitytrails": k.SecurityTrailsKey != "",
 		"viewdns":        k.ViewDNSKey != "",
+		"fofa":           k.FOFAEmail != "" && k.FOFAKey != "",
 	}
 }

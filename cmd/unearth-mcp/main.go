@@ -113,7 +113,7 @@ func registerDiscover(s *server.MCPServer, keys techniques.APIKeys) {
 
 func registerCertFingerprint(s *server.MCPServer, keys techniques.APIKeys) {
 	tool := mcp.NewTool("unearth_cert_fingerprint",
-		mcp.WithDescription("Run cert-fingerprint pivoting techniques against a target. Always runs ct_fingerprint (keyless). Also runs censys_cert and shodan_cert if the required API keys are set in the server's environment."),
+		mcp.WithDescription("Run cert-fingerprint pivoting techniques against a target. Always runs ct_fingerprint (keyless). Also runs censys_cert, shodan_cert, and fofa_cert if the required API keys are set in the server's environment."),
 		mcp.WithString("target",
 			mcp.Required(),
 			mcp.Description("The domain name to investigate, e.g. example.com"),
@@ -132,6 +132,9 @@ func registerCertFingerprint(s *server.MCPServer, keys techniques.APIKeys) {
 		}
 		if keys.ShodanAPIKey != "" {
 			techNames = append(techNames, "shodan_cert")
+		}
+		if keys.FOFAEmail != "" && keys.FOFAKey != "" {
+			techNames = append(techNames, "fofa_cert")
 		}
 
 		type techResult struct {
