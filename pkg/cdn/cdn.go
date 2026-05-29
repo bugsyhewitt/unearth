@@ -5,7 +5,8 @@
 // CDN, because they cannot be the real origin.
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
-// (Incapsula), Azure Front Door, Google Cloud CDN, and StackPath/Highwinds.
+// (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds, and
+// BunnyCDN.
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -84,6 +85,12 @@ var stackpathV4Raw []byte
 //go:embed data/stackpath-v6.txt
 var stackpathV6Raw []byte
 
+//go:embed data/bunnycdn-v4.txt
+var bunnyCDNV4Raw []byte
+
+//go:embed data/bunnycdn-v6.txt
+var bunnyCDNV6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -161,6 +168,12 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded StackPath ranges: %v", err))
 	}
 	providers = append(providers, stackpath)
+
+	bunnycdn, err := buildBunnyCDN()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded BunnyCDN ranges: %v", err))
+	}
+	providers = append(providers, bunnycdn)
 }
 
 func buildFastly() (*Provider, error) {
@@ -304,6 +317,27 @@ func buildStackPath() (*Provider, error) {
 			".netdna-cdn.com",
 			".netdna-ssl.com",
 			".netdna.com",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildBunnyCDN() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(bunnyCDNV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("bunnycdn v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(bunnyCDNV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("bunnycdn v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "bunnycdn",
+		dnsHints: []string{
+			".b-cdn.net",
+			".bunnycdn.com",
+			".bunny.net",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -575,7 +609,25 @@ func classifyHeaders(h http.Header) string {
 	if isStackPathHeaders(h) {
 		return "stackpath"
 	}
+	if isBunnyCDNHeaders(h) {
+		return "bunnycdn"
+	}
 	return ""
+}
+
+// isBunnyCDNHeaders reports whether the response headers carry a BunnyCDN
+// (bunny.net) signature. Every BunnyCDN edge response stamps a "Server:
+// BunnyCDN-<pop>" value identifying the serving POP, and pull zones emit the
+// proprietary CDN-PullZone and CDN-RequestCountryCode headers on every
+// response. Either marker identifies the provider.
+func isBunnyCDNHeaders(h http.Header) bool {
+	if strings.HasPrefix(strings.ToLower(h.Get("Server")), "bunnycdn") {
+		return true
+	}
+	if h.Get("CDN-PullZone") != "" || h.Get("CDN-RequestCountryCode") != "" {
+		return true
+	}
+	return false
 }
 
 // isStackPathHeaders reports whether the response headers carry a StackPath /
@@ -718,6 +770,15 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "stackpath") {
 		out = append(out, "header x-cdn mentions stackpath")
+	}
+	if strings.HasPrefix(strings.ToLower(h.Get("Server")), "bunnycdn") {
+		out = append(out, "header server: bunnycdn pop (bunnycdn)")
+	}
+	if h.Get("CDN-PullZone") != "" {
+		out = append(out, "header cdn-pullzone present (bunnycdn)")
+	}
+	if h.Get("CDN-RequestCountryCode") != "" {
+		out = append(out, "header cdn-requestcountrycode present (bunnycdn)")
 	}
 	return out
 }

@@ -1,0 +1,5 @@
+# BunnyCDN IPv6 ranges — captured 2026-05-28
+# Source: published BunnyWay edge prefixes via the BunnyCDN ASN AS200325.
+#   https://bgp.he.net/AS200325
+2a0a:f900::/29
+2606:7400::/32

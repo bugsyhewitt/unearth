@@ -1,0 +1,11 @@
+# BunnyCDN IPv4 ranges — captured 2026-05-28
+# BunnyCDN (operated by BunnyWay d.o.o., Slovenia) runs its global pull-zone
+# edge network primarily under AS200325 (BunnyWay d.o.o. / bunny.net). The
+# edge POPs announce from these blocks; pull-zone hostnames resolve into them.
+# Source: published BunnyWay edge prefixes via the BunnyCDN ASN AS200325.
+#   https://bgp.he.net/AS200325
+89.187.160.0/19
+138.199.0.0/16
+143.244.48.0/20
+169.150.196.0/22
+194.169.150.0/23

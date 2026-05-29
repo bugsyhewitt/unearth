@@ -693,3 +693,96 @@ func TestClassifyHeaders_StackPath(t *testing.T) {
 		}
 	})
 }
+
+// ── BunnyCDN ──────────────────────────────────────────────────────────────────
+
+func TestIsCDNIP_BunnyCDN(t *testing.T) {
+	// 89.187.160.1 is inside 89.187.160.0/19, a BunnyCDN AS200325 range.
+	addr := netip.MustParseAddr("89.187.160.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("89.187.160.1 should be BunnyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "bunnycdn" {
+		t.Errorf("ProviderForIP(89.187.160.1) = %q, want bunnycdn", got)
+	}
+}
+
+func TestIsCDNIP_BunnyCDN_Range2(t *testing.T) {
+	// 138.199.50.10 is inside 138.199.0.0/16, another BunnyCDN range.
+	addr := netip.MustParseAddr("138.199.50.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("138.199.50.10 should be BunnyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "bunnycdn" {
+		t.Errorf("ProviderForIP(138.199.50.10) = %q, want bunnycdn", got)
+	}
+}
+
+func TestIsCDNIP_BunnyCDN_IPv6(t *testing.T) {
+	// 2a0a:f900::1 is inside 2a0a:f900::/29, a BunnyCDN IPv6 range.
+	addr := netip.MustParseAddr("2a0a:f900::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2a0a:f900::1 should be BunnyCDN CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "bunnycdn" {
+		t.Errorf("ProviderForIP(2a0a:f900::1) = %q, want bunnycdn", got)
+	}
+}
+
+func TestProviderByDNS_BunnyCDN(t *testing.T) {
+	cases := map[string]string{
+		"mypullzone.b-cdn.net": "bunnycdn",
+		"assets.bunnycdn.com":  "bunnycdn",
+		"video.bunny.net":      "bunnycdn",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestClassifyHeaders_BunnyCDN(t *testing.T) {
+	t.Run("server-bunnycdn-pop", func(t *testing.T) {
+		h := http.Header{"Server": []string{"BunnyCDN-FR1-823"}}
+		if got := classifyHeaders(h); got != "bunnycdn" {
+			t.Errorf("classifyHeaders with server BunnyCDN-FR1 = %q, want bunnycdn", got)
+		}
+	})
+	t.Run("cdn-pullzone", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("CDN-PullZone", "123456")
+		if got := classifyHeaders(h); got != "bunnycdn" {
+			t.Errorf("classifyHeaders with cdn-pullzone = %q, want bunnycdn", got)
+		}
+	})
+	t.Run("cdn-requestcountrycode", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("CDN-RequestCountryCode", "SI")
+		if got := classifyHeaders(h); got != "bunnycdn" {
+			t.Errorf("classifyHeaders with cdn-requestcountrycode = %q, want bunnycdn", got)
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("Server", "BunnyCDN-DE1-1099")
+		h.Set("CDN-PullZone", "123456")
+		h.Set("CDN-RequestCountryCode", "SI")
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawPullZone, sawCountry bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: bunnycdn pop (bunnycdn)":
+				sawServer = true
+			case "header cdn-pullzone present (bunnycdn)":
+				sawPullZone = true
+			case "header cdn-requestcountrycode present (bunnycdn)":
+				sawCountry = true
+			}
+		}
+		if !sawServer || !sawPullZone || !sawCountry {
+			t.Errorf("expected bunnycdn signals, got %v", sigs)
+		}
+	})
+}
