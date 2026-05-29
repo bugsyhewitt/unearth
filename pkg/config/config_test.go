@@ -165,7 +165,34 @@ func TestWeights_ZeroValue(t *testing.T) {
 	}
 }
 
+// allCredentialEnvVars is every environment variable LoadAPIKeys consults,
+// across both the canonical (documented) and the legacy UNEARTH_-prefixed
+// alias names. Tests clear all of them so a stray value in the real
+// environment cannot leak into a case that means to assert "unset".
+var allCredentialEnvVars = []string{
+	"CENSYS_PLATFORM_PAT", "UNEARTH_CENSYS_PAT",
+	"CENSYS_API_ID", "UNEARTH_CENSYS_API_ID",
+	"CENSYS_API_SECRET", "UNEARTH_CENSYS_API_SECRET",
+	"SHODAN_API_KEY", "UNEARTH_SHODAN_API_KEY",
+	"SECURITYTRAILS_API_KEY", "UNEARTH_SECURITYTRAILS_API_KEY",
+	"VIEWDNS_API_KEY", "UNEARTH_VIEWDNS_API_KEY",
+	"FOFA_EMAIL", "UNEARTH_FOFA_EMAIL",
+	"FOFA_KEY", "UNEARTH_FOFA_KEY",
+	"NETLAS_API_KEY", "UNEARTH_NETLAS_API_KEY",
+	"CRIMINALIP_API_KEY", "UNEARTH_CRIMINALIP_API_KEY",
+}
+
+// clearCredentialEnv unsets every credential variable for the duration of the
+// test so each case starts from a known-empty environment.
+func clearCredentialEnv(t *testing.T) {
+	t.Helper()
+	for _, name := range allCredentialEnvVars {
+		t.Setenv(name, "")
+	}
+}
+
 func TestLoadAPIKeys(t *testing.T) {
+	clearCredentialEnv(t)
 	t.Setenv("UNEARTH_CENSYS_PAT", "pat-tok")
 	t.Setenv("UNEARTH_SHODAN_API_KEY", "sho")
 	t.Setenv("UNEARTH_SECURITYTRAILS_API_KEY", "st")
@@ -179,11 +206,94 @@ func TestLoadAPIKeys(t *testing.T) {
 	}
 }
 
+// TestLoadAPIKeys_CanonicalNames verifies the documented, unprefixed variable
+// names (the ones the README tells users to export) are honored. This is the
+// regression guard for the bug where the README documented CENSYS_PLATFORM_PAT,
+// SHODAN_API_KEY, etc. but the loader only read the UNEARTH_-prefixed aliases,
+// silently ignoring keys set per the docs.
+func TestLoadAPIKeys_CanonicalNames(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("CENSYS_PLATFORM_PAT", "pat")
+	t.Setenv("CENSYS_API_ID", "cid")
+	t.Setenv("CENSYS_API_SECRET", "csec")
+	t.Setenv("SHODAN_API_KEY", "sho")
+	t.Setenv("SECURITYTRAILS_API_KEY", "st")
+	t.Setenv("VIEWDNS_API_KEY", "vd")
+	t.Setenv("FOFA_EMAIL", "you@example.com")
+	t.Setenv("FOFA_KEY", "fk")
+	t.Setenv("NETLAS_API_KEY", "nl")
+	t.Setenv("CRIMINALIP_API_KEY", "cip")
+
+	k := LoadAPIKeys()
+	want := map[string]string{
+		"CensysPlatformPAT": k.CensysPlatformPAT,
+		"CensysAPIID":       k.CensysAPIID,
+		"CensysAPISecret":   k.CensysAPISecret,
+		"ShodanAPIKey":      k.ShodanAPIKey,
+		"SecurityTrailsKey": k.SecurityTrailsKey,
+		"ViewDNSKey":        k.ViewDNSKey,
+		"FOFAEmail":         k.FOFAEmail,
+		"FOFAKey":           k.FOFAKey,
+		"NetlasAPIKey":      k.NetlasAPIKey,
+		"CriminalIPKey":     k.CriminalIPKey,
+	}
+	expected := map[string]string{
+		"CensysPlatformPAT": "pat",
+		"CensysAPIID":       "cid",
+		"CensysAPISecret":   "csec",
+		"ShodanAPIKey":      "sho",
+		"SecurityTrailsKey": "st",
+		"ViewDNSKey":        "vd",
+		"FOFAEmail":         "you@example.com",
+		"FOFAKey":           "fk",
+		"NetlasAPIKey":      "nl",
+		"CriminalIPKey":     "cip",
+	}
+	for field, got := range want {
+		if got != expected[field] {
+			t.Errorf("%s: want %q, got %q", field, expected[field], got)
+		}
+	}
+}
+
+// TestLoadAPIKeys_CanonicalWinsOverLegacy verifies the documented name takes
+// precedence when both the canonical and the legacy UNEARTH_-prefixed alias
+// are set.
+func TestLoadAPIKeys_CanonicalWinsOverLegacy(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("UNEARTH_SHODAN_API_KEY", "legacy")
+	t.Setenv("SHODAN_API_KEY", "canonical")
+	t.Setenv("UNEARTH_CENSYS_PAT", "legacy-pat")
+	t.Setenv("CENSYS_PLATFORM_PAT", "canonical-pat")
+
+	k := LoadAPIKeys()
+	if k.ShodanAPIKey != "canonical" {
+		t.Errorf("ShodanAPIKey: want canonical to win, got %q", k.ShodanAPIKey)
+	}
+	if k.CensysPlatformPAT != "canonical-pat" {
+		t.Errorf("CensysPlatformPAT: want canonical to win, got %q", k.CensysPlatformPAT)
+	}
+}
+
+// TestLoadAPIKeys_LegacyFallback verifies the legacy UNEARTH_-prefixed alias is
+// still honored when the canonical name is unset, so existing users do not
+// break.
+func TestLoadAPIKeys_LegacyFallback(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("UNEARTH_SHODAN_API_KEY", "legacy-only")
+	t.Setenv("UNEARTH_NETLAS_API_KEY", "legacy-netlas")
+
+	k := LoadAPIKeys()
+	if k.ShodanAPIKey != "legacy-only" {
+		t.Errorf("ShodanAPIKey: want legacy fallback, got %q", k.ShodanAPIKey)
+	}
+	if k.NetlasAPIKey != "legacy-netlas" {
+		t.Errorf("NetlasAPIKey: want legacy fallback, got %q", k.NetlasAPIKey)
+	}
+}
+
 func TestLoadAPIKeys_EmptyEnv(t *testing.T) {
-	t.Setenv("UNEARTH_CENSYS_PAT", "")
-	t.Setenv("UNEARTH_SHODAN_API_KEY", "")
-	t.Setenv("UNEARTH_SECURITYTRAILS_API_KEY", "")
-	t.Setenv("UNEARTH_VIEWDNS_API_KEY", "")
+	clearCredentialEnv(t)
 	k := LoadAPIKeys()
 	if k.CensysPlatformPAT != "" || k.ShodanAPIKey != "" {
 		t.Errorf("expected empty fields, got %+v", k)
@@ -214,10 +324,9 @@ func TestCredentialStatus(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			clearCredentialEnv(t)
 			pat, sho, st, vd := tc.set()
 			t.Setenv("UNEARTH_CENSYS_PAT", pat)
-			t.Setenv("UNEARTH_CENSYS_API_ID", "")
-			t.Setenv("UNEARTH_CENSYS_API_SECRET", "")
 			t.Setenv("UNEARTH_SHODAN_API_KEY", sho)
 			t.Setenv("UNEARTH_SECURITYTRAILS_API_KEY", st)
 			t.Setenv("UNEARTH_VIEWDNS_API_KEY", vd)
@@ -232,7 +341,7 @@ func TestCredentialStatus(t *testing.T) {
 }
 
 func TestCredentialStatus_CriminalIP(t *testing.T) {
-	t.Setenv("UNEARTH_CRIMINALIP_API_KEY", "")
+	clearCredentialEnv(t)
 	if CredentialStatus(LoadAPIKeys())["criminalip"] {
 		t.Error("criminalip should be false with no key")
 	}

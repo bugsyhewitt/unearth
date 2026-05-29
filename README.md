@@ -106,6 +106,8 @@ export CRIMINALIP_API_KEY="your-criminalip-key"
 
 The tool announces which keys are loaded (or absent) on every run. Key-required techniques are silently skipped when the key is missing.
 
+> **Variable names:** each credential above is also accepted under an `UNEARTH_`-prefixed alias (e.g. `UNEARTH_SHODAN_API_KEY`, `UNEARTH_CENSYS_PAT`) for backward compatibility. When both a name and its alias are set, the unprefixed name shown above wins.
+
 > **Censys note:** `censys_cert` uses the Censys Platform API (PAT-based). The Censys Legacy API is not supported. Free-tier Platform accounts may return `403 Tier Insufficient` for some queries — the technique degrades gracefully.
 
 > **FOFA note:** `fofa_cert` needs **both** `FOFA_EMAIL` and `FOFA_KEY` (generated from your FOFA account's Personal Center → API page); with only one set the technique is skipped. FOFA's free tier exposes the certificate search; when an account is out of query quota FOFA answers `HTTP 200` with an `error` flag, which the technique treats as a clean tier-insufficient skip rather than a failure. FOFA's heavier APAC scan coverage complements the US-centric Shodan/Censys indexes — its value is reach, not redundancy.

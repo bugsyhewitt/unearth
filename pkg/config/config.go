@@ -171,21 +171,43 @@ func resolveUserPath(explicit string) (string, error) {
 	return filepath.Join(dir, "unearth", "weights.yaml"), nil
 }
 
+// envFirst returns the value of the first non-empty environment variable in
+// names, in order. It exists so a credential can be read from its documented,
+// canonical name first and still fall back to a legacy alias for backward
+// compatibility.
+func envFirst(names ...string) string {
+	for _, name := range names {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // LoadAPIKeys reads third-party credentials from the environment and returns
 // a techniques.APIKeys. Missing variables yield empty fields, which the
 // engine treats as "skip that technique" rather than as an error.
+//
+// Each credential is read from its documented, canonical name first (e.g.
+// CENSYS_PLATFORM_PAT, SHODAN_API_KEY — the names shown in the README) and,
+// when that is unset, falls back to the historical UNEARTH_-prefixed alias
+// (e.g. UNEARTH_CENSYS_PAT). The canonical name wins when both are set. The
+// README documented the unprefixed names but earlier builds only read the
+// prefixed ones, so a user following the docs had their keys silently ignored;
+// honoring both names fixes that without breaking anyone already using the
+// prefixed form.
 func LoadAPIKeys() techniques.APIKeys {
 	return techniques.APIKeys{
-		CensysPlatformPAT: os.Getenv("UNEARTH_CENSYS_PAT"),
-		CensysAPIID:       os.Getenv("UNEARTH_CENSYS_API_ID"),
-		CensysAPISecret:   os.Getenv("UNEARTH_CENSYS_API_SECRET"),
-		ShodanAPIKey:      os.Getenv("UNEARTH_SHODAN_API_KEY"),
-		SecurityTrailsKey: os.Getenv("UNEARTH_SECURITYTRAILS_API_KEY"),
-		ViewDNSKey:        os.Getenv("UNEARTH_VIEWDNS_API_KEY"),
-		FOFAEmail:         os.Getenv("UNEARTH_FOFA_EMAIL"),
-		FOFAKey:           os.Getenv("UNEARTH_FOFA_KEY"),
-		NetlasAPIKey:      os.Getenv("UNEARTH_NETLAS_API_KEY"),
-		CriminalIPKey:     os.Getenv("UNEARTH_CRIMINALIP_API_KEY"),
+		CensysPlatformPAT: envFirst("CENSYS_PLATFORM_PAT", "UNEARTH_CENSYS_PAT"),
+		CensysAPIID:       envFirst("CENSYS_API_ID", "UNEARTH_CENSYS_API_ID"),
+		CensysAPISecret:   envFirst("CENSYS_API_SECRET", "UNEARTH_CENSYS_API_SECRET"),
+		ShodanAPIKey:      envFirst("SHODAN_API_KEY", "UNEARTH_SHODAN_API_KEY"),
+		SecurityTrailsKey: envFirst("SECURITYTRAILS_API_KEY", "UNEARTH_SECURITYTRAILS_API_KEY"),
+		ViewDNSKey:        envFirst("VIEWDNS_API_KEY", "UNEARTH_VIEWDNS_API_KEY"),
+		FOFAEmail:         envFirst("FOFA_EMAIL", "UNEARTH_FOFA_EMAIL"),
+		FOFAKey:           envFirst("FOFA_KEY", "UNEARTH_FOFA_KEY"),
+		NetlasAPIKey:      envFirst("NETLAS_API_KEY", "UNEARTH_NETLAS_API_KEY"),
+		CriminalIPKey:     envFirst("CRIMINALIP_API_KEY", "UNEARTH_CRIMINALIP_API_KEY"),
 	}
 }
 
