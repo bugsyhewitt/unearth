@@ -1,0 +1,11 @@
+# CacheFly IPv4 ranges — captured 2026-05-29
+# CacheFly (operated by CacheNetworks, LLC, USA) runs one of the oldest pure-play
+# CDN edge networks under AS30081 (CACHENETWORKS / CacheFly). The edge POPs
+# announce from these blocks; CDN hostnames (*.cachefly.net) resolve into them.
+# Source: published CacheFly / CacheNetworks edge prefixes via the CacheFly ASN
+#   AS30081. https://bgp.he.net/AS30081
+# These blocks are CacheFly-exclusive and do not overlap any other snapshot here.
+# (Note: 205.234.0.0/19 is distinct from StackPath's 205.234.160.0/19 block.)
+205.234.0.0/19
+204.93.150.0/23
+204.93.157.0/24

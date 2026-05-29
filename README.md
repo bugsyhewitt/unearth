@@ -265,6 +265,7 @@ The following CDNs are detected (IP-range matching + header and DNS signals):
 - **Edgio (Limelight / Edgecast)** — published edge ranges from the two operating ASNs (AS22822 Limelight Networks Global and AS15133 Edgecast / Verizon Media, now Edgio), `llnwd.net`/`llnw.com`/`lldns.net`/`edgecastcdn.net`/`systemcdn.net`/`edgio.net` CNAME signals, the Edgecast `server: ECS`/`server: ECAcc` and Limelight `server: LimeLight` edge markers, the `x-llid` request-tracking header, the `x-ec-*` Edgecast header family, and an `x-cdn: edgio` value
 - **KeyCDN (proinity GmbH)** — published edge ranges (AS199653, proinity GmbH, Switzerland), `kxcdn.com`/`keycdn.com` CNAME signals, the `server: keycdn-engine` edge marker, the `x-edge-location` serving-POP header and `x-pull` pull-zone header, and an `x-cdn: keycdn` value
 - **Gcore (G-Core Labs)** — published edge ranges (AS199524, G-Core Labs S.A., Luxembourg), `gcdn.co`/`gcorelabs.com`/`gcore.com` CNAME signals, the `server: gcore` edge marker, the proprietary `x-gcore-*` header family (e.g. `x-gcore-pop` serving POP), and an `x-cdn: gcore` value
+- **CacheFly (CacheNetworks)** — published edge ranges (AS30081, CacheNetworks, LLC), `cachefly.net` CNAME signals, the `server: CacheFly` edge marker, the proprietary `x-cf1`/`x-cf2` request-tracking headers, and an `x-cdn: cachefly` value
 
 Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 

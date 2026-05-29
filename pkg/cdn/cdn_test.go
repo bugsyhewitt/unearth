@@ -1277,3 +1277,129 @@ func TestClassifyHeaders_Gcore(t *testing.T) {
 		}
 	})
 }
+
+// ── CacheFly (CacheNetworks) ─────────────────────────────────────────────────
+
+func TestIsCDNIP_CacheFly(t *testing.T) {
+	// 205.234.0.1 is inside 205.234.0.0/19, a CacheFly AS30081 range.
+	addr := netip.MustParseAddr("205.234.0.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("205.234.0.1 should be CacheFly CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cachefly" {
+		t.Errorf("ProviderForIP(205.234.0.1) = %q, want cachefly", got)
+	}
+}
+
+func TestIsCDNIP_CacheFly_Range2(t *testing.T) {
+	// 204.93.150.10 is inside 204.93.150.0/23, another CacheFly range.
+	addr := netip.MustParseAddr("204.93.150.10")
+	if !IsCDNIP(addr) {
+		t.Errorf("204.93.150.10 should be CacheFly CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cachefly" {
+		t.Errorf("ProviderForIP(204.93.150.10) = %q, want cachefly", got)
+	}
+}
+
+func TestIsCDNIP_CacheFly_IPv6(t *testing.T) {
+	// 2620:e6::1 is inside 2620:e6::/32, a CacheFly IPv6 range.
+	addr := netip.MustParseAddr("2620:e6::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2620:e6::1 should be CacheFly CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "cachefly" {
+		t.Errorf("ProviderForIP(2620:e6::1) = %q, want cachefly", got)
+	}
+}
+
+// TestProviderForIP_CacheFly_Negative confirms an address just outside the
+// embedded CacheFly blocks is not misattributed to CacheFly. It also guards the
+// 205.234.x boundary: 205.234.160.1 belongs to StackPath, not CacheFly.
+func TestProviderForIP_CacheFly_Negative(t *testing.T) {
+	// 205.234.160.1 is inside StackPath's 205.234.160.0/19, not CacheFly.
+	addr := netip.MustParseAddr("205.234.160.1")
+	if got := ProviderForIP(addr); got == "cachefly" {
+		t.Errorf("ProviderForIP(205.234.160.1) = cachefly, want stackpath")
+	}
+	if got := ProviderForIP(addr); got != "stackpath" {
+		t.Errorf("ProviderForIP(205.234.160.1) = %q, want stackpath", got)
+	}
+}
+
+func TestProviderByDNS_CacheFly(t *testing.T) {
+	cases := map[string]string{
+		"assets.cachefly.net": "cachefly",
+		"cdn.cachefly.net":    "cachefly",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestProviderByDNS_CacheFly_Negative(t *testing.T) {
+	// A lookalike that is not a CacheFly suffix must not match.
+	if got, _ := providerByDNS("cachefly.net.evil.example"); got == "cachefly" {
+		t.Errorf("providerByDNS(cachefly.net.evil.example) = cachefly, want non-cachefly")
+	}
+}
+
+func TestClassifyHeaders_CacheFly(t *testing.T) {
+	t.Run("server-cachefly", func(t *testing.T) {
+		h := http.Header{"Server": []string{"CacheFly"}}
+		if got := classifyHeaders(h); got != "cachefly" {
+			t.Errorf("classifyHeaders with server CacheFly = %q, want cachefly", got)
+		}
+	})
+	t.Run("x-cf1-header", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CF1", "ord")
+		if got := classifyHeaders(h); got != "cachefly" {
+			t.Errorf("classifyHeaders with x-cf1 = %q, want cachefly", got)
+		}
+	})
+	t.Run("x-cf2-header", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CF2", "hit")
+		if got := classifyHeaders(h); got != "cachefly" {
+			t.Errorf("classifyHeaders with x-cf2 = %q, want cachefly", got)
+		}
+	})
+	t.Run("x-cdn-cachefly", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "CacheFly")
+		if got := classifyHeaders(h); got != "cachefly" {
+			t.Errorf("classifyHeaders with x-cdn CacheFly = %q, want cachefly", got)
+		}
+	})
+	t.Run("negative-no-cachefly-marker", func(t *testing.T) {
+		h := http.Header{"Server": []string{"nginx"}}
+		if got := classifyHeaders(h); got == "cachefly" {
+			t.Errorf("classifyHeaders with plain nginx = cachefly, want non-cachefly")
+		}
+	})
+	t.Run("collectHeaderSignals", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("Server", "CacheFly")
+		h.Set("X-CF1", "ord")
+		h.Set("X-CDN", "CacheFly")
+		sigs := collectHeaderSignals(h)
+		var sawServer, sawXCF, sawXCDN bool
+		for _, s := range sigs {
+			switch s {
+			case "header server: cachefly (cachefly)":
+				sawServer = true
+			case "header x-cf1/x-cf2 present (cachefly)":
+				sawXCF = true
+			case "header x-cdn mentions cachefly":
+				sawXCDN = true
+			}
+		}
+		if !sawServer || !sawXCF || !sawXCDN {
+			t.Errorf("expected cachefly signals, got %v", sigs)
+		}
+	})
+}

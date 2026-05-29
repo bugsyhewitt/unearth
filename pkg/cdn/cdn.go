@@ -6,7 +6,8 @@
 //
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
 // (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
-// BunnyCDN, CDN77, Edgio (Limelight / Edgecast), KeyCDN, and Gcore (G-Core Labs).
+// BunnyCDN, CDN77, Edgio (Limelight / Edgecast), KeyCDN, Gcore (G-Core Labs),
+// and CacheFly (CacheNetworks).
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -115,6 +116,12 @@ var gcoreV4Raw []byte
 //go:embed data/gcore-v6.txt
 var gcoreV6Raw []byte
 
+//go:embed data/cachefly-v4.txt
+var cacheflyV4Raw []byte
+
+//go:embed data/cachefly-v6.txt
+var cacheflyV6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -222,6 +229,31 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded Gcore ranges: %v", err))
 	}
 	providers = append(providers, gcore)
+
+	cachefly, err := buildCacheFly()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded CacheFly ranges: %v", err))
+	}
+	providers = append(providers, cachefly)
+}
+
+func buildCacheFly() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(cacheflyV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("cachefly v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(cacheflyV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("cachefly v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "cachefly",
+		dnsHints: []string{
+			".cachefly.net",
+		},
+		prefixes: prefixes,
+	}, nil
 }
 
 func buildGcore() (*Provider, error) {
@@ -759,7 +791,28 @@ func classifyHeaders(h http.Header) string {
 	if isGcoreHeaders(h) {
 		return "gcore"
 	}
+	if isCacheFlyHeaders(h) {
+		return "cachefly"
+	}
 	return ""
+}
+
+// isCacheFlyHeaders reports whether the response headers carry a CacheFly
+// (CacheNetworks, LLC) signature. CacheFly edge nodes advertise "Server:
+// CacheFly" on every edge response and stamp the proprietary X-CF1 / X-CF2
+// request-tracking headers; some configurations also emit an "X-CDN: CacheFly"
+// marker. Any of these markers identifies the provider.
+func isCacheFlyHeaders(h http.Header) bool {
+	if strings.Contains(strings.ToLower(h.Get("Server")), "cachefly") {
+		return true
+	}
+	if h.Get("X-CF1") != "" || h.Get("X-CF2") != "" {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "cachefly") {
+		return true
+	}
+	return false
 }
 
 // isGcoreHeaders reports whether the response headers carry a Gcore (G-Core
@@ -1064,6 +1117,15 @@ func collectHeaderSignals(h http.Header) []string {
 	}
 	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "gcore") {
 		out = append(out, "header x-cdn mentions gcore")
+	}
+	if strings.Contains(strings.ToLower(h.Get("Server")), "cachefly") {
+		out = append(out, "header server: cachefly (cachefly)")
+	}
+	if h.Get("X-CF1") != "" || h.Get("X-CF2") != "" {
+		out = append(out, "header x-cf1/x-cf2 present (cachefly)")
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "cachefly") {
+		out = append(out, "header x-cdn mentions cachefly")
 	}
 	return out
 }

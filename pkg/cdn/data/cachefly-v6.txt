@@ -1,0 +1,4 @@
+# CacheFly IPv6 ranges — captured 2026-05-29
+# Source: published CacheFly / CacheNetworks edge prefixes via the CacheFly ASN
+#   AS30081. https://bgp.he.net/AS30081
+2620:e6::/32
