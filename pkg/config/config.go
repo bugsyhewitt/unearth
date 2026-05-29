@@ -31,6 +31,7 @@ var knownTechniques = map[string]struct{}{
 	"censys_cert":    {},
 	"shodan_cert":    {},
 	"fofa_cert":      {},
+	"netlas_cert":    {},
 	"host_header":    {},
 	"banner_grab":    {},
 	"error_page":     {},
@@ -182,15 +183,17 @@ func LoadAPIKeys() techniques.APIKeys {
 		ViewDNSKey:        os.Getenv("UNEARTH_VIEWDNS_API_KEY"),
 		FOFAEmail:         os.Getenv("UNEARTH_FOFA_EMAIL"),
 		FOFAKey:           os.Getenv("UNEARTH_FOFA_KEY"),
+		NetlasAPIKey:      os.Getenv("UNEARTH_NETLAS_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
-// Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa". The "censys"
-// entry is true when a Censys Platform PAT is present; the "fofa" entry is
-// true only when both the FOFA email and key are present. The legacy ID/secret pair
-// is no longer consulted: the Censys Search v2 API it authenticates is
-// disabled for Free accounts and is sunsetting in 2026.
+// Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas".
+// The "censys" entry is true when a Censys Platform PAT is present; the "fofa"
+// entry is true only when both the FOFA email and key are present; the
+// "netlas" entry is true when a Netlas API key is present. The legacy
+// ID/secret pair is no longer consulted: the Censys Search v2 API it
+// authenticates is disabled for Free accounts and is sunsetting in 2026.
 func CredentialStatus(k techniques.APIKeys) map[string]bool {
 	return map[string]bool{
 		"censys":         k.CensysPlatformPAT != "",
@@ -198,5 +201,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"securitytrails": k.SecurityTrailsKey != "",
 		"viewdns":        k.ViewDNSKey != "",
 		"fofa":           k.FOFAEmail != "" && k.FOFAKey != "",
+		"netlas":         k.NetlasAPIKey != "",
 	}
 }

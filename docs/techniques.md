@@ -119,6 +119,20 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 **Limitations:** FOFA's certificate match is a substring match against the indexed certificate text rather than a structured fingerprint field, so a hit means the fingerprint hex appears in the cert FOFA indexed for that host. Free-tier accounts are quota-limited and may not return all pages; this technique fetches a single page of up to 100 results to stay within free-tier budgets.
 
+### `netlas_cert`
+
+**Tier:** Passive | **Weight:** 0.75 | **API key:** `NETLAS_API_KEY`
+
+**What it does:** Fingerprints the target's current TLS leaf certificate (SHA-256), then queries Netlas (`netlas.io`) for every indexed response whose certificate carries that fingerprint. Non-CDN hits are surfaced as origin candidates — the same cert-pivot idea as `censys_cert` / `shodan_cert` / `fofa_cert`, against a fourth independent index.
+
+**Data source:** Netlas responses search API (`https://app.netlas.io/api/responses/`). The query (`certificate.fingerprints.sha256:<sha256>`) is passed in the `q` parameter and the key authenticates via the `X-API-Key` header. Each result item carries a `data.ip` field, which is parsed into a candidate (CDN edge IPs are filtered).
+
+**Why it complements Censys/Shodan/FOFA:** Netlas indexes domain names alongside IPs and maintains its own internet-wide scan corpus that overlaps only partially with the other three. A misconfigured origin that leaks its real certificate may surface in Netlas when it is absent from Shodan, Censys, and FOFA — and a Netlas hit corroborating another source on the same fingerprint raises confidence under the noisy-OR ranking. The value is coverage diversity, not redundancy.
+
+**Key requirement:** `NETLAS_API_KEY` must be present; without it the technique skips gracefully (exactly like the other keyed cert pivots). Netlas offers a free tier with a daily request allowance — when that allowance is exhausted the API answers `HTTP 429` (or a quota message in a `200` envelope), which the technique treats as a clean tier-insufficient skip rather than a run failure. An invalid key degrades to a clean missing-key skip.
+
+**Limitations:** This technique fetches a single page of up to 100 results to stay within free-tier budgets, so targets with very large certificate-sharing sets may be truncated. Netlas's free tier covers the response search used here; some advanced query operators are reserved for paid plans and are not relied upon.
+
 ---
 
 ### `dns_history`

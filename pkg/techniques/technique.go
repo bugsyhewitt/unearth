@@ -84,6 +84,12 @@ type APIKeys struct {
 	// account's Personal Center → API page.
 	FOFAEmail string
 	FOFAKey   string
+
+	// NetlasAPIKey is the API key for the Netlas (netlas.io) search API.
+	// Required to run netlas_cert; absent skips the technique. Generated
+	// from a Netlas account's Profile → API key page. Netlas offers a free
+	// tier with a daily request allowance.
+	NetlasAPIKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.
