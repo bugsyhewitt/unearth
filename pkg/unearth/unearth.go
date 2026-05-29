@@ -475,6 +475,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.ZoomEyeKey != ""
 	case "chaos_asset":
 		return k.ChaosKey != ""
+	case "virustotal_passivedns":
+		return k.VirusTotalKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we

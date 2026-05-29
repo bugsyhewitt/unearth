@@ -141,6 +141,19 @@ type APIKeys struct {
 	// the active-scan engines, so resolving the hosts it has catalogued under a
 	// target domain surfaces origins the cert and scan engines miss.
 	ChaosKey string
+
+	// VirusTotalKey is the API key for the VirusTotal v3 API
+	// (www.virustotal.com/api/v3). Required to run virustotal_passivedns;
+	// absent skips the technique. Generated from a VirusTotal account's
+	// API key page (https://www.virustotal.com/gui/my-apikey). VirusTotal
+	// offers a free public tier (currently ~500 requests/day, 4 requests/
+	// minute) and indexes a long-tailed passive-DNS corpus aggregated from
+	// scanner submissions; the `/domains/{domain}/resolutions` endpoint
+	// returns historical hostname→IP observations going back years, so a
+	// forgotten origin record that never reused the front-door certificate
+	// — and so escapes the cert engines — can still surface here with the
+	// date it was last observed.
+	VirusTotalKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.

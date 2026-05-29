@@ -215,6 +215,26 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `virustotal_passivedns`
+
+**Tier:** Passive | **Weight:** 0.67 | **API key:** `VIRUSTOTAL_API_KEY`
+
+**What it does:** Queries VirusTotal's v3 passive-DNS endpoint for every historical hostname→IP observation VirusTotal has accumulated for the target apex domain and surfaces the non-CDN IPs as origin candidates. **This is not a certificate-fingerprint pivot.** Like `fullhunt_asset`, `zoomeye_asset`, and `chaos_asset`, it is an asset enumerator, not a cert engine — but unlike all three, it operates on a *temporal* corpus: each observation carries the date it was last seen, so origins that have since rotated out of DNS can still surface.
+
+**Data source:** VirusTotal v3 API (`https://www.virustotal.com/api/v3/domains/{domain}/resolutions`). The target apex is the path parameter and the key authenticates via the `x-apikey` header. The response envelope is `{"data":[{"attributes":{"ip_address","host_name","date"}},…],"meta":{"cursor"},"links":{"next"}}`. Pagination is cursor-based (`?cursor=…`), and the technique walks pages up to a hard 25-page ceiling.
+
+**How it differs from the other asset backends:** Unlike `chaos_asset` (which returns subdomain *names* and must resolve each one itself), VirusTotal returns the IP directly under `attributes.ip_address`. The technique therefore makes no DNS lookups at all — the target is never contacted, only VirusTotal's API is — which keeps results deterministic for caching and the footprint on the target at zero.
+
+**Why it complements the other engines:** the eight certificate-fingerprint engines pivot on the target's *current* leaf certificate, so they miss any origin that rotated its certificate, never reused the front-door cert, or was decommissioned. The three other asset enumerators pivot on host inventories indexed at the time of their last crawl. VirusTotal's passive-DNS corpus is *temporal*: it preserves hostname→IP observations going back years, harvested from URL scans, file submissions, and integrated DNS feeds. A forgotten `origin.example.com` record from three years ago — one no cert engine ever touched and no asset crawler recorded — can still surface here with its last-observed date. Coverage diversity along an axis the other backends don't reach.
+
+**Key requirement:** `VIRUSTOTAL_API_KEY` must be present (the `VT_API_KEY` and `UNEARTH_VIRUSTOTAL_API_KEY` aliases are also accepted); without it the technique skips gracefully. VirusTotal's free public tier has a strict allowance (currently ~500 requests/day and 4 requests/minute) — when the per-minute or daily quota is exhausted, or the account lacks the v3 endpoint, the API answers `HTTP 429`/`403` (or a 4xx body carrying an `error.code` of `QuotaExceededError`/`TooManyRequestsError`/`UserNotActiveError`), which the technique treats as a clean tier-insufficient skip rather than a run failure. A missing/invalid key (`HTTP 401`, `AuthenticationRequiredError`, `WrongCredentialsError`) degrades to a clean missing-key skip; an `HTTP 404` (no resolutions known for the apex) is a clean empty success, not an error.
+
+**Why VirusTotal over Hunter.io:** Hunter.io was the alternative considered for this slot. Hunter's API is an email-address finder — it returns people and email addresses associated with a domain, a different axis than asset discovery (and a less useful one for origin-IP hunting, since email infrastructure is already covered by the `email_header` and `spf_mx` techniques and the path from `person@domain` to origin-server-IP is indirect at best). VirusTotal's passive-DNS endpoint, by contrast, adds the one coverage axis the existing eleven asset/cert backends lack: temporal history.
+
+**Limitations:** VirusTotal's corpus is observation-based — it only contains IPs that VirusTotal's scanners or partners actually saw resolve for the apex. A target that has always been CDN-fronted, with no historical DNS leak, will return only CDN edge IPs (all filtered) and contribute no candidates. The free-tier rate limit (4 req/min) makes high-fan-out pipeline runs slow; for large target lists, consider running this technique in a separate pass or with a paid tier. Cursor pagination is capped at 25 pages to prevent runaway pulls; for apex domains with deep history this means VirusTotal's first ~1000 most-recent observations, not the entire dataset.
+
+---
+
 ### `dns_history`
 
 **Tier:** Passive | **Weight:** 0.65 | **API key:** `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY`

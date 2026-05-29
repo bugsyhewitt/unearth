@@ -39,6 +39,7 @@ var knownTechniques = map[string]struct{}{
 	"fullhunt_asset":   {},
 	"zoomeye_asset":    {},
 	"chaos_asset":      {},
+	"virustotal_passivedns": {},
 	"host_header":      {},
 	"banner_grab":      {},
 	"error_page":       {},
@@ -220,12 +221,15 @@ func LoadAPIKeys() techniques.APIKeys {
 		FullHuntKey:       envFirst("FULLHUNT_API_KEY", "UNEARTH_FULLHUNT_API_KEY"),
 		ZoomEyeKey:        envFirst("ZOOMEYE_API_KEY", "UNEARTH_ZOOMEYE_API_KEY"),
 		ChaosKey:          envFirst("PDCP_API_KEY", "CHAOS_API_KEY", "UNEARTH_PDCP_API_KEY"),
+		VirusTotalKey:     envFirst("VIRUSTOTAL_API_KEY", "VT_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
 // Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
-// "criminalip", "binaryedge", "leakix", "onyphe", "fullhunt", "zoomeye", "chaos". The
+// "criminalip", "binaryedge", "leakix", "onyphe", "fullhunt", "zoomeye", "chaos",
+// "virustotal". The "virustotal" entry is true when a VirusTotal API key is
+// present; that key powers the virustotal_passivedns technique. The
 // "zoomeye" entry is true when a ZoomEye API key is present; the "chaos" entry
 // is true when a ProjectDiscovery Chaos (PDCP) API key is present. The "censys" entry is true when a Censys
 // Platform PAT is present; the "fofa" entry is true only when both the FOFA email
@@ -252,5 +256,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"fullhunt":       k.FullHuntKey != "",
 		"zoomeye":        k.ZoomEyeKey != "",
 		"chaos":          k.ChaosKey != "",
+		"virustotal":     k.VirusTotalKey != "",
 	}
 }
