@@ -43,6 +43,7 @@ var knownTechniques = map[string]struct{}{
 	"virustotal_passivedns": {},
 	"urlscan_asset":         {},
 	"otx_passivedns":        {},
+	"greynoise_asset":       {},
 	"host_header":           {},
 	"banner_grab":           {},
 	"error_page":            {},
@@ -227,6 +228,7 @@ func LoadAPIKeys() techniques.APIKeys {
 		VirusTotalKey:     envFirst("VIRUSTOTAL_API_KEY", "VT_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY"),
 		URLScanKey:        envFirst("URLSCAN_API_KEY", "UNEARTH_URLSCAN_API_KEY"),
 		OTXKey:            envFirst("OTX_API_KEY", "ALIENVAULT_OTX_API_KEY", "UNEARTH_OTX_API_KEY"),
+		GreyNoiseKey:      envFirst("GREYNOISE_API_KEY", "UNEARTH_GREYNOISE_API_KEY"),
 	}
 }
 
@@ -269,5 +271,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"virustotal":     k.VirusTotalKey != "",
 		"urlscan":        k.URLScanKey != "",
 		"otx":            k.OTXKey != "",
+		"greynoise":      k.GreyNoiseKey != "",
 	}
 }

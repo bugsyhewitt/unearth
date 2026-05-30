@@ -167,6 +167,21 @@ type APIKeys struct {
 	// date it was last observed.
 	VirusTotalKey string
 
+	// GreyNoiseKey is the API key for the GreyNoise (greynoise.io) GNQL
+	// search API. Required to run greynoise_asset; absent skips the technique.
+	// Generated from a GreyNoise account's API key page
+	// (https://viz.greynoise.io/account/api-key). The GNQL search endpoint
+	// sits behind paid Investigate / Enterprise plans; the Community tier
+	// answers 401/402/403 for the endpoint, which the technique treats as a
+	// clean tier-insufficient skip rather than a failure. GreyNoise's value is
+	// orthogonal corpus diversity: its planetary sensor mesh observes IPs
+	// generating actual internet traffic and tags each with reverse DNS,
+	// organization, and ASN metadata. A forgotten origin whose rDNS still
+	// advertises the target apex — and that has talked to anyone in the last
+	// 90 days — surfaces here even when no cert engine, asset crawler, or
+	// passive-DNS feed recorded it.
+	GreyNoiseKey string
+
 	// OTXKey is the optional API key for the AlienVault OTX
 	// (otx.alienvault.com) passive-DNS API. Unlike every other backend
 	// credential in this struct, OTXKey is OPTIONAL: the OTX passive-DNS
