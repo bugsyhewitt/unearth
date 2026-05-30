@@ -142,6 +142,18 @@ type APIKeys struct {
 	// target domain surfaces origins the cert and scan engines miss.
 	ChaosKey string
 
+	// URLScanKey is the API key for the URLScan.io search API
+	// (urlscan.io/api/v1/search/). Required to run urlscan_asset; absent
+	// skips the technique. Generated from a URLScan.io account's User Profile →
+	// API page. URLScan offers a free tier with a generous monthly request
+	// allowance; its corpus is community-submitted browser scans (PhishTank,
+	// SOC playbook automation, manual lookups), so a misconfigured origin
+	// that briefly leaked from behind a CDN — for example during a deploy
+	// cutover, a CDN outage, or a targeted scan against a `direct.example.com`
+	// shortcut — can be preserved in URLScan's index even though the cert
+	// engines, scan grids, and passive-DNS feeds never recorded it.
+	URLScanKey string
+
 	// VirusTotalKey is the API key for the VirusTotal v3 API
 	// (www.virustotal.com/api/v3). Required to run virustotal_passivedns;
 	// absent skips the technique. Generated from a VirusTotal account's

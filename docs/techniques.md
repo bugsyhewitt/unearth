@@ -235,6 +235,26 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `urlscan_asset`
+
+**Tier:** Passive | **Weight:** 0.66 | **API key:** `URLSCAN_API_KEY`
+
+**What it does:** Queries URLScan.io's search API for every public browser-rendered scan submission ever recorded against the target apex domain and surfaces the non-CDN page-serving IPs as origin candidates. **This is not a certificate-fingerprint pivot.** Like `fullhunt_asset`, `zoomeye_asset`, `chaos_asset`, and `virustotal_passivedns`, it is an asset enumerator, not a cert engine — but unlike all four, it operates on a *user-submitted browser-scan* corpus: every scan record carries the IP the page actually served from at the moment a real browser rendered it.
+
+**Data source:** URLScan.io API (`https://urlscan.io/api/v1/search/?q=domain:{domain}&size=100`). The key authenticates via the `API-Key` header. The response envelope is `{"results":[{"page":{"ip","domain","url","asnname"},"task":{"time"},"sort":[…]},…],"total","has_more"}`. Pagination is deep-cursor-based (`?search_after=`, derived from the last result's `sort` array), and the technique walks pages until URLScan flags `has_more:false` or a hard 10-page ceiling (1000 results max) is reached.
+
+**How it differs from the other asset backends:** Unlike `chaos_asset` (which returns subdomain *names* and must resolve each one itself), URLScan returns the page-serving IP directly under `page.ip`. The technique therefore makes no DNS lookups at all — the target is never contacted, only URLScan's API is — which keeps results deterministic for caching and the footprint on the target at zero. Unlike `virustotal_passivedns` (which records every passive-DNS resolution VirusTotal's partners ever saw), URLScan only records IPs that were *actually rendered* by a real browser at scan time, so its hits are higher-confidence at a smaller corpus size.
+
+**Why it complements the other engines:** the eight certificate-fingerprint engines pivot on the target's *current* leaf certificate, so they miss any origin that rotated its certificate, never reused the front-door cert, or was decommissioned. The three host-inventory enumerators pivot on what active scan grids observed at crawl time. VirusTotal's passive-DNS corpus records resolutions observed in network telemetry. URLScan's corpus records *what a browser actually rendered* — community-submitted PhishTank entries, SOC playbook automation, manual lookups, URLScan's own crawler. A misconfigured origin that *briefly* leaked from behind a CDN — a five-minute deploy cutover, a CDN outage, a quietly-shipped `direct.example.com` shortcut someone submitted to URLScan once — is preserved here even though the cert engines, scan grids, and passive-DNS feeds never recorded it. Coverage diversity along yet another orthogonal axis.
+
+**Key requirement:** `URLSCAN_API_KEY` must be present (the `UNEARTH_URLSCAN_API_KEY` alias is also accepted); without it the technique skips gracefully. URLScan offers a free tier with a generous monthly request allowance — when that allowance is exhausted, or the plan lacks the search capability, the API answers `HTTP 429`/`403` (or a 4xx body carrying a `message`/`description` envelope mentioning `rate limit`/`quota`/`upgrade`/`forbidden`), which the technique treats as a clean tier-insufficient skip rather than a run failure. A missing/invalid key (`HTTP 401`, or a `message`/`description` envelope mentioning `Invalid API key`/`unauthorized`/`API-Key required`) degrades to a clean missing-key skip.
+
+**Why URLScan over Shodan Monitor:** Shodan Monitor was the alternative considered for this slot. Monitor is Shodan's *alerting* product — it watches netblocks the operator has pre-registered and notifies on changes. It is not an asset-discovery surface for an unknown origin, in the same way Hunter.io is not (Hunter is an email-address axis). For unearth's job — "given a CDN-fronted domain, find the origin IP behind it" — Monitor adds nothing that the existing `shodan_cert` backend doesn't already cover, because the operator has to know the netblock in advance to register an alert. URLScan.io's search endpoint, by contrast, adds the one corpus the existing twelve cert / asset / passive-DNS backends lack: the *moment-in-time browser-rendered scan record*.
+
+**Limitations:** URLScan's corpus is submission-based — it only contains IPs from scans that were actually submitted (manually or programmatically). A target that has always been CDN-fronted, with no historical browser scan capturing an origin leak, will return only CDN edge IPs (all filtered) and contribute no candidates. The free-tier monthly allowance makes high-fan-out pipeline runs feasible but not unlimited; for large target lists, monitor your URLScan dashboard. Deep paging is capped at 10 pages to prevent runaway pulls; for very popular apex domains this means URLScan's first ~1000 most-recent scans, not the entire dataset.
+
+---
+
 ### `dns_history`
 
 **Tier:** Passive | **Weight:** 0.65 | **API key:** `SECURITYTRAILS_API_KEY` or `VIEWDNS_API_KEY`

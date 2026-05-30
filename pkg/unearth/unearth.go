@@ -477,6 +477,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.ChaosKey != ""
 	case "virustotal_passivedns":
 		return k.VirusTotalKey != ""
+	case "urlscan_asset":
+		return k.URLScanKey != ""
 	default:
 		// Unknown technique that declares RequiresAPIKey()==true: the
 		// conservative answer is "we don't know what key it needs, so we

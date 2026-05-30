@@ -23,27 +23,28 @@ var defaultWeightsYAML []byte
 // weights file that mentions a name outside this set produces a warning,
 // not an error.
 var knownTechniques = map[string]struct{}{
-	"crtsh":            {},
-	"ct_fingerprint":   {},
-	"dns_history":      {},
-	"spf_mx":           {},
-	"subdomain_enum":   {},
-	"censys_cert":      {},
-	"shodan_cert":      {},
-	"fofa_cert":        {},
-	"netlas_cert":      {},
-	"criminalip_asset": {},
-	"binaryedge_cert":  {},
-	"leakix_cert":      {},
-	"onyphe_cert":      {},
-	"fullhunt_asset":   {},
-	"zoomeye_asset":    {},
-	"chaos_asset":      {},
+	"crtsh":                 {},
+	"ct_fingerprint":        {},
+	"dns_history":           {},
+	"spf_mx":                {},
+	"subdomain_enum":        {},
+	"censys_cert":           {},
+	"shodan_cert":           {},
+	"fofa_cert":             {},
+	"netlas_cert":           {},
+	"criminalip_asset":      {},
+	"binaryedge_cert":       {},
+	"leakix_cert":           {},
+	"onyphe_cert":           {},
+	"fullhunt_asset":        {},
+	"zoomeye_asset":         {},
+	"chaos_asset":           {},
 	"virustotal_passivedns": {},
-	"host_header":      {},
-	"banner_grab":      {},
-	"error_page":       {},
-	"ipv6_probe":       {},
+	"urlscan_asset":         {},
+	"host_header":           {},
+	"banner_grab":           {},
+	"error_page":            {},
+	"ipv6_probe":            {},
 }
 
 // Weights maps technique name to its configured reliability weight in [0,1].
@@ -222,13 +223,16 @@ func LoadAPIKeys() techniques.APIKeys {
 		ZoomEyeKey:        envFirst("ZOOMEYE_API_KEY", "UNEARTH_ZOOMEYE_API_KEY"),
 		ChaosKey:          envFirst("PDCP_API_KEY", "CHAOS_API_KEY", "UNEARTH_PDCP_API_KEY"),
 		VirusTotalKey:     envFirst("VIRUSTOTAL_API_KEY", "VT_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY"),
+		URLScanKey:        envFirst("URLSCAN_API_KEY", "UNEARTH_URLSCAN_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
 // Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
 // "criminalip", "binaryedge", "leakix", "onyphe", "fullhunt", "zoomeye", "chaos",
-// "virustotal". The "virustotal" entry is true when a VirusTotal API key is
+// "virustotal", "urlscan". The "urlscan" entry is true when a URLScan.io API
+// key is present; that key powers the urlscan_asset technique. The
+// "virustotal" entry is true when a VirusTotal API key is
 // present; that key powers the virustotal_passivedns technique. The
 // "zoomeye" entry is true when a ZoomEye API key is present; the "chaos" entry
 // is true when a ProjectDiscovery Chaos (PDCP) API key is present. The "censys" entry is true when a Censys
@@ -257,5 +261,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"zoomeye":        k.ZoomEyeKey != "",
 		"chaos":          k.ChaosKey != "",
 		"virustotal":     k.VirusTotalKey != "",
+		"urlscan":        k.URLScanKey != "",
 	}
 }

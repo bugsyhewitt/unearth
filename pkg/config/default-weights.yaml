@@ -16,6 +16,7 @@ weights:
   zoomeye_asset: 0.68
   chaos_asset: 0.66
   virustotal_passivedns: 0.67
+  urlscan_asset: 0.66
   host_header: 0.85
   banner_grab: 0.45
   error_page: 0.60
