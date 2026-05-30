@@ -29,6 +29,7 @@ var knownTechniques = map[string]struct{}{
 	"spf_mx":                {},
 	"subdomain_enum":        {},
 	"censys_cert":           {},
+	"censys_ipv6":           {},
 	"shodan_cert":           {},
 	"fofa_cert":             {},
 	"netlas_cert":           {},

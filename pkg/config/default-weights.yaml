@@ -5,6 +5,7 @@ weights:
   spf_mx: 0.50
   subdomain_enum: 0.35
   censys_cert: 0.90
+  censys_ipv6: 0.78
   shodan_cert: 0.85
   fofa_cert: 0.80
   netlas_cert: 0.75

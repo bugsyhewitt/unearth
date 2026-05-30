@@ -105,6 +105,22 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `censys_ipv6`
+
+**Tier:** Passive | **Weight:** 0.78 | **API key:** `CENSYS_PLATFORM_PAT`
+
+**What it does:** Searches the Censys Platform for every host indexed under the target's DNS apex (`host.dns.names="<target>" OR host.dns.names="*.<target>"`) and emits only the IPv6 addresses outside known CDN ranges. **This is not a certificate-fingerprint pivot.** Where `censys_cert` requires a host to reuse the front-door TLS leaf certificate, `censys_ipv6` requires only that a hostname under the target apex resolves to an IPv6 address Censys has scanned — catching the AAAA-leak pattern explicitly: a dual-stack origin whose IPv6 listener never bound the public cert (a common misconfiguration when an IPv4 frontend is migrated behind a CDN but the IPv6 listener is left on an internal/self-signed cert and the AAAA record is never withdrawn) is invisible to `censys_cert` but present here.
+
+**Data source:** Censys Platform global search API (`POST https://api.platform.censys.io/v3/global/search/query`), same endpoint as `censys_cert`. The CenQL filter uses `host.dns.names` instead of `host.services.cert.fingerprint_sha256`; only `host.ip` is requested in the field list. Pagination follows the standard `next_page_token` cursor; the Censys budget is charged once per page so a runaway pagination loop cannot drain a Free-tier allowance.
+
+**Why it complements `censys_cert`:** the two techniques pivot on orthogonal signals against the same index, and the noisy-OR ranking combines them naturally. When both surface the same IPv6 the corroboration raises confidence; when only `censys_ipv6` fires it is reporting a v6 origin leak the cert engines cannot see. IPv4 hits returned by the DNS-name search are deliberately dropped — the IPv4 origin-cert-reuse case is already covered by `censys_cert`, and excluding v4 here keeps the technique's signal sharp. IPv4-mapped IPv6 addresses (`::ffff:1.2.3.4`) are detected via `Unmap()` and treated as IPv4, so they are dropped as well.
+
+**Key requirement:** `CENSYS_PLATFORM_PAT` must be present; without it the technique skips with `ErrMissingAPIKey` (exactly like `censys_cert`). A 401, 403, or 429 from the Platform — all of which indicate the account tier lacks the host-search capability or the allowance is exhausted on a Free-tier account — is mapped to `ErrTierInsufficient` so the technique degrades to a clean skip rather than failing the run.
+
+**Limitations:** Requires the target apex to be indexed in Censys's host data. Targets that have never been scanned, or whose subdomains use a private DNS view that Censys cannot resolve, will return zero candidates. IPv6 origin leaks themselves are relatively rare in 2026 — most modern CDN deployments front IPv6 alongside IPv4 — so this technique fires infrequently but with high confidence when it does. Results are cached for one hour to avoid re-charging the Censys budget on repeated runs against the same target.
+
+---
+
 ### `fofa_cert`
 
 **Tier:** Passive | **Weight:** 0.80 | **API key:** `FOFA_EMAIL` + `FOFA_KEY`

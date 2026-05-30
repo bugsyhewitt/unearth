@@ -453,6 +453,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 	switch name {
 	case "censys_cert":
 		return k.CensysPlatformPAT != ""
+	case "censys_ipv6":
+		return k.CensysPlatformPAT != ""
 	case "dns_history":
 		return k.SecurityTrailsKey != "" || k.ViewDNSKey != ""
 	case "shodan_cert":
