@@ -41,6 +41,7 @@ var knownTechniques = map[string]struct{}{
 	"chaos_asset":           {},
 	"virustotal_passivedns": {},
 	"urlscan_asset":         {},
+	"otx_passivedns":        {},
 	"host_header":           {},
 	"banner_grab":           {},
 	"error_page":            {},
@@ -224,13 +225,17 @@ func LoadAPIKeys() techniques.APIKeys {
 		ChaosKey:          envFirst("PDCP_API_KEY", "CHAOS_API_KEY", "UNEARTH_PDCP_API_KEY"),
 		VirusTotalKey:     envFirst("VIRUSTOTAL_API_KEY", "VT_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY"),
 		URLScanKey:        envFirst("URLSCAN_API_KEY", "UNEARTH_URLSCAN_API_KEY"),
+		OTXKey:            envFirst("OTX_API_KEY", "ALIENVAULT_OTX_API_KEY", "UNEARTH_OTX_API_KEY"),
 	}
 }
 
 // CredentialStatus reports, per service, whether usable credentials are set.
 // Keys: "censys", "shodan", "securitytrails", "viewdns", "fofa", "netlas",
 // "criminalip", "binaryedge", "leakix", "onyphe", "fullhunt", "zoomeye", "chaos",
-// "virustotal", "urlscan". The "urlscan" entry is true when a URLScan.io API
+// "virustotal", "urlscan", "otx". The "otx" entry is true when an AlienVault
+// OTX API key is present; that key powers higher-rate access to the
+// otx_passivedns technique (the technique itself runs without a key, via
+// OTX's public anonymous endpoint). The "urlscan" entry is true when a URLScan.io API
 // key is present; that key powers the urlscan_asset technique. The
 // "virustotal" entry is true when a VirusTotal API key is
 // present; that key powers the virustotal_passivedns technique. The
@@ -262,5 +267,6 @@ func CredentialStatus(k techniques.APIKeys) map[string]bool {
 		"chaos":          k.ChaosKey != "",
 		"virustotal":     k.VirusTotalKey != "",
 		"urlscan":        k.URLScanKey != "",
+		"otx":            k.OTXKey != "",
 	}
 }

@@ -184,6 +184,7 @@ var allCredentialEnvVars = []string{
 	"LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY",
 	"ONYPHE_API_KEY", "UNEARTH_ONYPHE_API_KEY",
 	"FULLHUNT_API_KEY", "UNEARTH_FULLHUNT_API_KEY",
+	"OTX_API_KEY", "ALIENVAULT_OTX_API_KEY", "UNEARTH_OTX_API_KEY",
 }
 
 // clearCredentialEnv unsets every credential variable for the duration of the
@@ -352,6 +353,33 @@ func TestCredentialStatus_CriminalIP(t *testing.T) {
 	t.Setenv("UNEARTH_CRIMINALIP_API_KEY", "cip-key")
 	if !CredentialStatus(LoadAPIKeys())["criminalip"] {
 		t.Error("criminalip should be true when key is set")
+	}
+}
+
+// TestCredentialStatus_OTX confirms the OTX key is honored under all three
+// accepted env-var names (canonical, AlienVault-prefixed, and UNEARTH-prefixed),
+// and that the "otx" status entry tracks the key's presence — even though the
+// otx_passivedns technique itself runs without a key.
+func TestCredentialStatus_OTX(t *testing.T) {
+	clearCredentialEnv(t)
+	if CredentialStatus(LoadAPIKeys())["otx"] {
+		t.Error("otx should be false with no key")
+	}
+	t.Setenv("OTX_API_KEY", "otx-canonical")
+	if !CredentialStatus(LoadAPIKeys())["otx"] {
+		t.Error("otx should be true when OTX_API_KEY is set")
+	}
+
+	clearCredentialEnv(t)
+	t.Setenv("ALIENVAULT_OTX_API_KEY", "otx-av")
+	if !CredentialStatus(LoadAPIKeys())["otx"] {
+		t.Error("otx should be true when ALIENVAULT_OTX_API_KEY is set")
+	}
+
+	clearCredentialEnv(t)
+	t.Setenv("UNEARTH_OTX_API_KEY", "otx-legacy")
+	if !CredentialStatus(LoadAPIKeys())["otx"] {
+		t.Error("otx should be true when UNEARTH_OTX_API_KEY is set")
 	}
 }
 

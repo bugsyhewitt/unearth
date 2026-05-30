@@ -166,6 +166,17 @@ type APIKeys struct {
 	// — and so escapes the cert engines — can still surface here with the
 	// date it was last observed.
 	VirusTotalKey string
+
+	// OTXKey is the optional API key for the AlienVault OTX
+	// (otx.alienvault.com) passive-DNS API. Unlike every other backend
+	// credential in this struct, OTXKey is OPTIONAL: the OTX passive-DNS
+	// endpoint is publicly accessible without authentication, so
+	// otx_passivedns runs with or without a key. When OTXKey is set, the
+	// request is sent with an `X-OTX-API-KEY` header — that lifts the
+	// anonymous per-IP rate limit and identifies the caller for OTX's
+	// plan-level allowance. Generated from an OTX account's Settings →
+	// API Integration page (free signup; no payment required).
+	OTXKey string
 }
 
 // BudgetCaps limits the number of paid-API calls a single invocation may make.
