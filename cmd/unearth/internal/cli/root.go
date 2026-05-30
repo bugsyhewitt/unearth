@@ -38,6 +38,7 @@ type rootFlags struct {
 	silent        bool
 	weights       string
 	emailFile     string
+	cveID         string
 	pipelineBatch int
 }
 
@@ -92,6 +93,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().BoolVar(&f.silent, "silent", false, "Suppress all non-result output")
 	cmd.Flags().StringVar(&f.weights, "weights", "", "Path to a custom weights YAML")
 	cmd.Flags().StringVar(&f.emailFile, "email-file", "", "Path to a raw email (.eml) whose Received: headers are mined for origin IPs")
+	cmd.Flags().StringVar(&f.cveID, "cve", "", "CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE")
 	cmd.Flags().IntVar(&f.pipelineBatch, "pipeline-batch", 1, "Number of targets to discover concurrently (1 = sequential; output stays in input order)")
 
 	cmd.AddCommand(newVersionCmd(stdout))
@@ -138,6 +140,7 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		PerTechniqueTimeout: 30 * time.Second,
 		WeightsPath:         f.weights,
 		EmailFile:           f.emailFile,
+		CVEID:               f.cveID,
 		APIKeys:             config.LoadAPIKeys(),
 	}
 

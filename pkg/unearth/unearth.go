@@ -48,6 +48,9 @@ type Options struct {
 	// Received: header chain the email_header technique parses for
 	// CDN-bypassed relay IPs. Empty string skips that technique.
 	EmailFile string
+	// CVEID optionally scopes the shodan_cve technique to a single CVE
+	// identifier (e.g. "CVE-2024-1709"). Empty string skips that technique.
+	CVEID string
 }
 
 // DefaultOptions returns Options with conservative defaults: passive tier only,
@@ -177,6 +180,7 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 		NoCache:     opts.NoCache,
 		Refresh:     opts.Refresh,
 		EmailFile:   opts.EmailFile,
+		CVEID:       opts.CVEID,
 	}
 
 	// Select techniques, filter for missing keys, split into the
@@ -459,6 +463,8 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.SecurityTrailsKey != "" || k.ViewDNSKey != ""
 	case "shodan_cert":
 		return k.ShodanAPIKey != ""
+	case "shodan_cve":
+		return k.ShodanAPIKey != ""
 	case "fofa_cert":
 		return k.FOFAEmail != "" && k.FOFAKey != ""
 	case "netlas_cert":
@@ -551,6 +557,7 @@ func RunTechnique(ctx context.Context, name string, target string, opts Options,
 		Refresh:     opts.Refresh,
 		SeedIPs:     seedAddrs,
 		EmailFile:   opts.EmailFile,
+		CVEID:       opts.CVEID,
 	}
 	return t.Run(tCtx, target, runOpts)
 }

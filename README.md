@@ -74,6 +74,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `host_header` | Active | No | 0.85 | HTTP host-header bypass: connects to candidate IPs with `Host: target` |
 | `banner_grab` | Active | No | 0.45 | SSH and HTTP banner fingerprinting of candidate IPs |
 | `shodan_cert` | Active | Yes — `SHODAN_API_KEY` | 0.85 | Shodan certificate-fingerprint search |
+| `shodan_cve` | Passive | Yes — `SHODAN_API_KEY` + operator-supplied `--cve` | 0.78 | Shodan CVE-scoped host search — given a CVE id (e.g. `CVE-2024-1709`) and the target apex, asks Shodan for every host indexed under `hostname:<target>` that is known by Shodan's vulnerability scanner to be affected by that CVE, and emits the non-CDN hits; orthogonal to `shodan_cert` (a patched CDN-fronted edge does not match, an unpatched forgotten origin or staging host under the same apex does), purpose-built for disclosure-window recon |
 | `fofa_cert` | Passive | Yes — `FOFA_EMAIL` + `FOFA_KEY` | 0.80 | FOFA certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against FOFA's 4B+ asset index for broader APAC coverage than Shodan/Censys |
 | `netlas_cert` | Passive | Yes — `NETLAS_API_KEY` | 0.75 | Netlas certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Netlas's response index; indexes domains alongside IPs and has a free tier with a daily allowance |
 | `criminalip_asset` | Passive | Yes — `CRIMINALIP_API_KEY` | 0.70 | Criminal IP certificate-fingerprint search — pivots the target's TLS leaf-cert SHA-256 against Criminal IP's 4.2B+ asset index; its own AI-scored scan corpus surfaces origins absent from the other engines, and a free tier with a monthly allowance keeps it reachable |
@@ -205,6 +206,7 @@ Flags:
       --max-st int          SecurityTrails query cap per target (default 20)
       --weights string      Path to technique-weight overrides YAML
       --email-file string   Path to a raw email (.eml); its Received: headers are mined for origin IPs
+      --cve string          CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE
       --pipeline-batch int  Targets to discover concurrently in list/stdin mode (default 1 = sequential)
       --verbose             Print per-technique results to stderr
       --silent              Suppress all stderr output

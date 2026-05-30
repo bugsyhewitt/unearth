@@ -281,6 +281,15 @@ type RunOptions struct {
 	// header chain for CDN-bypassed relay IPs. Empty means the technique
 	// is skipped.
 	EmailFile string
+	// CVEID is an optional operator-supplied CVE identifier (e.g.
+	// "CVE-2024-1709") that scopes the shodan_cve technique's host search.
+	// Shodan indexes per-host vulnerability data under its `vuln:` filter;
+	// combined with `hostname:<target>` this surfaces hosts under the
+	// target apex that are known to be affected by the named CVE,
+	// frequently revealing forgotten or unpatched origin servers that have
+	// drifted out from behind the front-door CDN. Empty means shodan_cve
+	// skips silently — operator-supplied scope is the whole point.
+	CVEID string
 }
 
 // Technique is the extension point of unearth. Each technique is implemented

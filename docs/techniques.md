@@ -305,6 +305,20 @@ Both backends run in parallel. If one fails, the technique returns the other's r
 
 ---
 
+### `shodan_cve`
+
+**Tier:** Passive | **Weight:** 0.78 | **API key:** `SHODAN_API_KEY` plus operator-supplied `--cve <CVE-YYYY-NNNN>`
+
+**What it does:** Given an operator-supplied CVE identifier and the target apex, queries Shodan with the filter `vuln:<CVE-ID> hostname:<target>` and emits the non-CDN IPs of every host Shodan has indexed under the target's hostname that its vulnerability scanner has flagged as affected by that CVE.
+
+**Why it complements `shodan_cert`:** `shodan_cert` requires the candidate host to *reuse the front-door certificate* — a patched, properly CDN-fronted edge will match, an unpatched forgotten origin behind it often will not. `shodan_cve` inverts the signal: the candidate host must *expose a specific known vulnerability*. A patched CDN edge will not match (CDN providers patch quickly); an unpatched, forgotten origin or staging host under the same apex will, with high precision. The two backends combine naturally for disclosure-window recon (e.g. a freshly disclosed pre-auth RCE) where the priority is finding the unpatched host hidden behind a patched edge.
+
+**Data source:** Shodan host-search API (`https://api.shodan.io/shodan/host/search`).
+
+**Limitations:** Requires the operator to know which CVE to scope the search to — there is no auto-discovery. Without `--cve` the technique skips silently. Coverage depends on Shodan's vulnerability-scan freshness; a vulnerability disclosed in the past few hours may not yet be indexed under `vuln:`. Free Shodan plans may not include the `vuln:` filter — the technique degrades cleanly with `tier_insufficient` when the API answers `403` or returns a `200` body with an upgrade-required message.
+
+---
+
 ## Active Techniques
 
 Active techniques make direct TCP/HTTP connections to *candidate IPs*, not to the target's public hostname. They never appear in the target's access logs under normal operation. Enabled with `--active`.
