@@ -1,0 +1,9 @@
+# Vercel Edge Network IPv4 ranges
+# Source: Vercel AS394354 (Vercel Inc.) BGP announcements / published ranges
+# Updated: 2026-06
+# Canonical CNAME suffixes: .vercel.app  .vercel-dns.com  .now.sh
+76.76.21.0/24
+76.76.22.0/24
+76.76.27.0/24
+64.29.17.0/24
+64.29.18.0/24

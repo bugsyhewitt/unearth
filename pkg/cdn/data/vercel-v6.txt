@@ -1,0 +1,4 @@
+# Vercel Edge Network IPv6 ranges
+# Source: Vercel AS394354 BGP announcements
+# Updated: 2026-06
+2620:104:e000::/48

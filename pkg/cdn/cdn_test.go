@@ -1347,6 +1347,166 @@ func TestProviderByDNS_CacheFly_Negative(t *testing.T) {
 	}
 }
 
+// ── Vercel Edge Network ──────────────────────────────────────────────────────
+
+func TestIsCDNIP_Vercel(t *testing.T) {
+	// 76.76.21.1 is inside 76.76.21.0/24, a Vercel Edge Network range.
+	addr := netip.MustParseAddr("76.76.21.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("76.76.21.1 should be Vercel CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "vercel" {
+		t.Errorf("ProviderForIP(76.76.21.1) = %q, want vercel", got)
+	}
+}
+
+func TestIsCDNIP_Vercel_IPv6(t *testing.T) {
+	// 2620:104:e000::1 is inside 2620:104:e000::/48, a Vercel IPv6 range.
+	addr := netip.MustParseAddr("2620:104:e000::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2620:104:e000::1 should be Vercel CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "vercel" {
+		t.Errorf("ProviderForIP(2620:104:e000::1) = %q, want vercel", got)
+	}
+}
+
+func TestProviderByDNS_Vercel(t *testing.T) {
+	cases := map[string]string{
+		"myapp.vercel.app":   "vercel",
+		"api.vercel-dns.com": "vercel",
+		"project.now.sh":     "vercel",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestProviderByDNS_Vercel_Negative(t *testing.T) {
+	if got, _ := providerByDNS("vercel.app.evil.example"); got == "vercel" {
+		t.Errorf("providerByDNS(vercel.app.evil.example) = vercel, want non-vercel")
+	}
+}
+
+func TestClassifyHeaders_Vercel(t *testing.T) {
+	t.Run("x-vercel-id", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Vercel-Id", "iad1::abc123")
+		if got := classifyHeaders(h); got != "vercel" {
+			t.Errorf("classifyHeaders with X-Vercel-Id = %q, want vercel", got)
+		}
+	})
+	t.Run("x-vercel-cache", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Vercel-Cache", "HIT")
+		if got := classifyHeaders(h); got != "vercel" {
+			t.Errorf("classifyHeaders with X-Vercel-Cache = %q, want vercel", got)
+		}
+	})
+	t.Run("server-vercel", func(t *testing.T) {
+		h := http.Header{"Server": []string{"Vercel"}}
+		if got := classifyHeaders(h); got != "vercel" {
+			t.Errorf("classifyHeaders with Server:Vercel = %q, want vercel", got)
+		}
+	})
+	t.Run("x-cdn-vercel", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "vercel")
+		if got := classifyHeaders(h); got != "vercel" {
+			t.Errorf("classifyHeaders with X-CDN:vercel = %q, want vercel", got)
+		}
+	})
+	t.Run("negative-no-vercel-marker", func(t *testing.T) {
+		h := http.Header{"Server": []string{"nginx"}}
+		if got := classifyHeaders(h); got == "vercel" {
+			t.Errorf("classifyHeaders with plain nginx = vercel, want non-vercel")
+		}
+	})
+}
+
+// ── Netlify CDN ──────────────────────────────────────────────────────────────
+
+func TestIsCDNIP_Netlify(t *testing.T) {
+	// 64.137.160.1 is inside 64.137.160.0/24, a Netlify CDN range.
+	addr := netip.MustParseAddr("64.137.160.1")
+	if !IsCDNIP(addr) {
+		t.Errorf("64.137.160.1 should be Netlify CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "netlify" {
+		t.Errorf("ProviderForIP(64.137.160.1) = %q, want netlify", got)
+	}
+}
+
+func TestIsCDNIP_Netlify_IPv6(t *testing.T) {
+	// 2620:12a:8000::1 is inside 2620:12a:8000::/48, a Netlify IPv6 range.
+	addr := netip.MustParseAddr("2620:12a:8000::1")
+	if !IsCDNIP(addr) {
+		t.Errorf("2620:12a:8000::1 should be Netlify CDN IP")
+	}
+	if got := ProviderForIP(addr); got != "netlify" {
+		t.Errorf("ProviderForIP(2620:12a:8000::1) = %q, want netlify", got)
+	}
+}
+
+func TestProviderByDNS_Netlify(t *testing.T) {
+	cases := map[string]string{
+		"mysite.netlify.app": "netlify",
+		"cdn.netlify.com":    "netlify",
+		"assets.netlify.net": "netlify",
+	}
+	for host, want := range cases {
+		got, _ := providerByDNS(host)
+		if got != want {
+			t.Errorf("providerByDNS(%s) = %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestProviderByDNS_Netlify_Negative(t *testing.T) {
+	if got, _ := providerByDNS("netlify.app.evil.example"); got == "netlify" {
+		t.Errorf("providerByDNS(netlify.app.evil.example) = netlify, want non-netlify")
+	}
+}
+
+func TestClassifyHeaders_Netlify(t *testing.T) {
+	t.Run("x-nf-request-id", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Nf-Request-Id", "01HXYZ")
+		if got := classifyHeaders(h); got != "netlify" {
+			t.Errorf("classifyHeaders with X-Nf-Request-Id = %q, want netlify", got)
+		}
+	})
+	t.Run("server-netlify", func(t *testing.T) {
+		h := http.Header{"Server": []string{"Netlify"}}
+		if got := classifyHeaders(h); got != "netlify" {
+			t.Errorf("classifyHeaders with Server:Netlify = %q, want netlify", got)
+		}
+	})
+	t.Run("x-cache-netlify", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-Cache", "netlify-HIT")
+		if got := classifyHeaders(h); got != "netlify" {
+			t.Errorf("classifyHeaders with X-Cache containing netlify = %q, want netlify", got)
+		}
+	})
+	t.Run("x-cdn-netlify", func(t *testing.T) {
+		h := http.Header{}
+		h.Set("X-CDN", "netlify")
+		if got := classifyHeaders(h); got != "netlify" {
+			t.Errorf("classifyHeaders with X-CDN:netlify = %q, want netlify", got)
+		}
+	})
+	t.Run("negative-no-netlify-marker", func(t *testing.T) {
+		h := http.Header{"Server": []string{"Apache"}}
+		if got := classifyHeaders(h); got == "netlify" {
+			t.Errorf("classifyHeaders with plain Apache = netlify, want non-netlify")
+		}
+	})
+}
+
 func TestClassifyHeaders_CacheFly(t *testing.T) {
 	t.Run("server-cachefly", func(t *testing.T) {
 		h := http.Header{"Server": []string{"CacheFly"}}

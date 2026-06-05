@@ -7,7 +7,7 @@
 // CDN coverage: Cloudflare, CloudFront, Fastly, Sucuri, Akamai, Imperva
 // (Incapsula), Azure Front Door, Google Cloud CDN, StackPath/Highwinds,
 // BunnyCDN, CDN77, Edgio (Limelight / Edgecast), KeyCDN, Gcore (G-Core Labs),
-// and CacheFly (CacheNetworks).
+// CacheFly (CacheNetworks), Vercel Edge Network, and Netlify CDN.
 // The code is structured so adding further providers is a matter of dropping
 // in a Provider value with detection markers and an embedded range snapshot.
 package cdn
@@ -122,6 +122,18 @@ var cacheflyV4Raw []byte
 //go:embed data/cachefly-v6.txt
 var cacheflyV6Raw []byte
 
+//go:embed data/vercel-v4.txt
+var vercelV4Raw []byte
+
+//go:embed data/vercel-v6.txt
+var vercelV6Raw []byte
+
+//go:embed data/netlify-v4.txt
+var netlifyV4Raw []byte
+
+//go:embed data/netlify-v6.txt
+var netlifyV6Raw []byte
+
 // Provider describes one known CDN: its canonical name, the DNS / HTTP
 // signals that identify it, and the IP prefixes it owns.
 type Provider struct {
@@ -235,6 +247,18 @@ func init() {
 		panic(fmt.Sprintf("cdn: parsing embedded CacheFly ranges: %v", err))
 	}
 	providers = append(providers, cachefly)
+
+	vercel, err := buildVercel()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Vercel ranges: %v", err))
+	}
+	providers = append(providers, vercel)
+
+	netlify, err := buildNetlify()
+	if err != nil {
+		panic(fmt.Sprintf("cdn: parsing embedded Netlify ranges: %v", err))
+	}
+	providers = append(providers, netlify)
 }
 
 func buildCacheFly() (*Provider, error) {
@@ -251,6 +275,48 @@ func buildCacheFly() (*Provider, error) {
 		Name: "cachefly",
 		dnsHints: []string{
 			".cachefly.net",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildVercel() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(vercelV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("vercel v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(vercelV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("vercel v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "vercel",
+		dnsHints: []string{
+			".vercel.app",
+			".vercel-dns.com",
+			".now.sh",
+		},
+		prefixes: prefixes,
+	}, nil
+}
+
+func buildNetlify() (*Provider, error) {
+	prefixes, err := parsePlainPrefixes(netlifyV4Raw)
+	if err != nil {
+		return nil, fmt.Errorf("netlify v4: %w", err)
+	}
+	v6, err := parsePlainPrefixes(netlifyV6Raw)
+	if err != nil {
+		return nil, fmt.Errorf("netlify v6: %w", err)
+	}
+	prefixes = append(prefixes, v6...)
+	return &Provider{
+		Name: "netlify",
+		dnsHints: []string{
+			".netlify.app",
+			".netlify.com",
+			".netlify.net",
 		},
 		prefixes: prefixes,
 	}, nil
@@ -794,6 +860,12 @@ func classifyHeaders(h http.Header) string {
 	if isCacheFlyHeaders(h) {
 		return "cachefly"
 	}
+	if isVercelHeaders(h) {
+		return "vercel"
+	}
+	if isNetlifyHeaders(h) {
+		return "netlify"
+	}
 	return ""
 }
 
@@ -982,6 +1054,47 @@ func isImpervaHeaders(h http.Header) bool {
 		if strings.HasPrefix(lc, "incap_ses") || strings.HasPrefix(lc, "visid_incap") {
 			return true
 		}
+	}
+	return false
+}
+
+// isVercelHeaders reports whether the response headers carry a Vercel Edge
+// Network signature. Vercel edge nodes stamp the X-Vercel-Id request-tracking
+// header on every edge response; the proprietary X-Vercel-Cache header
+// (HIT/MISS/BYPASS) is present whenever Vercel's edge caches the response.
+// The Server header is also set to "Vercel" on most Vercel-fronted deployments.
+func isVercelHeaders(h http.Header) bool {
+	if h.Get("X-Vercel-Id") != "" {
+		return true
+	}
+	if h.Get("X-Vercel-Cache") != "" {
+		return true
+	}
+	if strings.EqualFold(h.Get("Server"), "Vercel") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "vercel") {
+		return true
+	}
+	return false
+}
+
+// isNetlifyHeaders reports whether the response headers carry a Netlify CDN
+// signature. Netlify edge nodes stamp the X-Nf-Request-Id request-tracking
+// header on every proxied response; the X-Cache header may contain "HIT from
+// Netlify"; and the Server header is "Netlify" on most Netlify-fronted sites.
+func isNetlifyHeaders(h http.Header) bool {
+	if h.Get("X-Nf-Request-Id") != "" {
+		return true
+	}
+	if strings.EqualFold(h.Get("Server"), "Netlify") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-Cache")), "netlify") {
+		return true
+	}
+	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "netlify") {
+		return true
 	}
 	return false
 }

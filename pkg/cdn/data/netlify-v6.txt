@@ -1,0 +1,5 @@
+# Netlify CDN IPv6 ranges
+# Source: Netlify AS137954 BGP announcements
+# Updated: 2026-06
+2620:12a:8000::/48
+2620:12a:8001::/48

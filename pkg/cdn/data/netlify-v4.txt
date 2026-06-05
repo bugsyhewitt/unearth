@@ -1,0 +1,10 @@
+# Netlify CDN IPv4 ranges
+# Source: Netlify AS137954 (Netlify Inc.) BGP announcements / published ranges
+# Updated: 2026-06
+# Canonical CNAME suffixes: .netlify.app  .netlify.com  .netlify.net
+64.137.160.0/24
+64.137.161.0/24
+64.137.162.0/24
+64.137.163.0/24
+64.137.164.0/24
+64.137.165.0/24
