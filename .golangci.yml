@@ -13,6 +13,9 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+      - linters:
+          - misspell
+        text: "passivedns"
 
 formatters:
   enable:

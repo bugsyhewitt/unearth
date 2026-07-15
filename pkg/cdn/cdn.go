@@ -901,10 +901,7 @@ func isGcoreHeaders(h http.Header) bool {
 			return true
 		}
 	}
-	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "gcore") {
-		return true
-	}
-	return false
+	return strings.Contains(strings.ToLower(h.Get("X-CDN")), "gcore")
 }
 
 // isKeyCDNHeaders reports whether the response headers carry a KeyCDN (proinity
@@ -945,10 +942,7 @@ func isEdgioHeaders(h http.Header) bool {
 			return true
 		}
 	}
-	if strings.Contains(strings.ToLower(h.Get("X-CDN")), "edgio") {
-		return true
-	}
-	return false
+	return strings.Contains(strings.ToLower(h.Get("X-CDN")), "edgio")
 }
 
 // isCDN77Headers reports whether the response headers carry a CDN77 (DataCamp /

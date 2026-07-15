@@ -125,9 +125,9 @@ func isPrivateAddr(a netip.Addr) bool {
 // whitespace) are joined and runs of whitespace are squeezed.
 func summarizeReceived(hdr string) string {
 	s := strings.Join(strings.Fields(hdr), " ")
-	const max = 120
-	if len(s) > max {
-		s = s[:max] + "…"
+	const maxLen = 120
+	if len(s) > maxLen {
+		s = s[:maxLen] + "…"
 	}
 	return s
 }

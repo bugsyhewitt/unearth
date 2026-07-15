@@ -731,11 +731,11 @@ func fakeResultWithScores(target string, scores ...float64) *unearth.Result {
 	}
 	for i, sc := range scores {
 		r.Candidates = append(r.Candidates, unearth.ScoredIP{
-			IP:           fmt.Sprintf("10.0.0.%d", i+1),
-			Score:        sc,
+			IP:            fmt.Sprintf("10.0.0.%d", i+1),
+			Score:         sc,
 			Corroboration: 1,
 			SingleSource:  true,
-			Techniques:   []unearth.TechniqueHit{{Name: "crtsh", Weight: 0.55}},
+			Techniques:    []unearth.TechniqueHit{{Name: "crtsh", Weight: 0.55}},
 		})
 	}
 	return r

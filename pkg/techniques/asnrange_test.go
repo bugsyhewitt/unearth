@@ -112,7 +112,7 @@ func TestAsnSweep_BGPViewPrefixLookupReturnsPrefixes(t *testing.T) {
 	rt := &hostHeaderStubRT{
 		baselineBody: baselineBody,
 		byHost: map[string]func(*http.Request) (*http.Response, error){
-			"203.0.113.4": func(req *http.Request) (*http.Response, error) {
+			"203.0.113.4": func(_ *http.Request) (*http.Response, error) {
 				probeCount.Add(1)
 				return stubResponse(200, baselineBody), nil
 			},

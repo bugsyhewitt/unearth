@@ -233,12 +233,12 @@ type sarifDriver struct {
 }
 
 type sarifRule struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	ShortDescription sarifMessage    `json:"shortDescription"`
-	FullDescription  sarifMessage    `json:"fullDescription"`
-	HelpURI          string          `json:"helpUri"`
-	Properties       sarifRuleProps  `json:"properties"`
+	ID               string         `json:"id"`
+	Name             string         `json:"name"`
+	ShortDescription sarifMessage   `json:"shortDescription"`
+	FullDescription  sarifMessage   `json:"fullDescription"`
+	HelpURI          string         `json:"helpUri"`
+	Properties       sarifRuleProps `json:"properties"`
 }
 
 type sarifRuleProps struct {
@@ -246,10 +246,10 @@ type sarifRuleProps struct {
 }
 
 type sarifResult struct {
-	RuleID    string           `json:"ruleId"`
-	Level     string           `json:"level"`
-	Message   sarifMessage     `json:"message"`
-	Locations []sarifLocation  `json:"locations"`
+	RuleID    string          `json:"ruleId"`
+	Level     string          `json:"level"`
+	Message   sarifMessage    `json:"message"`
+	Locations []sarifLocation `json:"locations"`
 	// Properties carries unearth-specific data for consumers that can read
 	// SARIF property bags (e.g. GitHub Advanced Security UI extensions).
 	Properties sarifResultProps `json:"properties"`
@@ -269,17 +269,18 @@ type sarifLogicalLocation struct {
 }
 
 type sarifResultProps struct {
-	Score        float64            `json:"score"`
-	Corroboration int               `json:"corroboration"`
-	SingleSource  bool              `json:"single_source"`
-	CDNDetected   string            `json:"cdn_detected,omitempty"`
+	Score         float64                `json:"score"`
+	Corroboration int                    `json:"corroboration"`
+	SingleSource  bool                   `json:"single_source"`
+	CDNDetected   string                 `json:"cdn_detected,omitempty"`
 	Techniques    []unearth.TechniqueHit `json:"techniques"`
 }
 
 // sarifLevel maps a confidence score to a SARIF level.
-//   ≥ 0.80 → "error"   (high confidence — very likely a real origin)
-//   ≥ 0.50 → "warning" (medium confidence — worth investigating)
-//   < 0.50 → "note"    (low confidence — possible but uncertain)
+//
+//	≥ 0.80 → "error"   (high confidence — very likely a real origin)
+//	≥ 0.50 → "warning" (medium confidence — worth investigating)
+//	< 0.50 → "note"    (low confidence — possible but uncertain)
 func sarifLevel(score float64) string {
 	switch {
 	case score >= 0.80:

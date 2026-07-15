@@ -22,26 +22,26 @@ import (
 // one struct keeps the command definition uncluttered and gives tests one
 // place to inspect resolved values.
 type rootFlags struct {
-	list          string
-	active        bool
-	aggressive    bool
-	maxCensys     int
-	maxShodan     int
-	maxST         int
-	noCache       bool
-	refresh       bool
-	output        string
-	top           int
-	concurrent    int
-	timeout       time.Duration
-	verbose       bool
-	silent        bool
-	weights       string
-	emailFile     string
-	cveID         string
-	pipelineBatch      int
-	minConfidence      float64
-	excludeTechniques  []string
+	list              string
+	active            bool
+	aggressive        bool
+	maxCensys         int
+	maxShodan         int
+	maxST             int
+	noCache           bool
+	refresh           bool
+	output            string
+	top               int
+	concurrent        int
+	timeout           time.Duration
+	verbose           bool
+	silent            bool
+	weights           string
+	emailFile         string
+	cveID             string
+	pipelineBatch     int
+	minConfidence     float64
+	excludeTechniques []string
 }
 
 // runner is the indirection through which the root command invokes
