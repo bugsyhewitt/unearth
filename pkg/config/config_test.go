@@ -171,6 +171,11 @@ func TestWeights_ZeroValue(t *testing.T) {
 // across both the canonical (documented) and the legacy UNEARTH_-prefixed
 // alias names. Tests clear all of them so a stray value in the real
 // environment cannot leak into a case that means to assert "unset".
+//
+// When LoadAPIKeys gains a new envFirst call, the corresponding variable
+// names MUST be added here; omitting them lets real-environment keys bleed
+// into tests that intend to start from an empty-credential state, making
+// assertions silently wrong.
 var allCredentialEnvVars = []string{
 	"CENSYS_PLATFORM_PAT", "UNEARTH_CENSYS_PAT",
 	"CENSYS_API_ID", "UNEARTH_CENSYS_API_ID",
@@ -186,6 +191,18 @@ var allCredentialEnvVars = []string{
 	"LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY",
 	"ONYPHE_API_KEY", "UNEARTH_ONYPHE_API_KEY",
 	"FULLHUNT_API_KEY", "UNEARTH_FULLHUNT_API_KEY",
+	// ZoomEye — was missing; its presence in the real env would cause
+	// clearCredentialEnv calls to leave ZoomEyeKey non-empty.
+	"ZOOMEYE_API_KEY", "UNEARTH_ZOOMEYE_API_KEY",
+	// Chaos/ProjectDiscovery — same issue; three accepted names.
+	"PDCP_API_KEY", "CHAOS_API_KEY", "UNEARTH_PDCP_API_KEY",
+	// VirusTotal — same issue; three accepted names.
+	"VIRUSTOTAL_API_KEY", "VT_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY",
+	// URLScan — same issue.
+	"URLSCAN_API_KEY", "UNEARTH_URLSCAN_API_KEY",
+	// GreyNoise — same issue.
+	"GREYNOISE_API_KEY", "UNEARTH_GREYNOISE_API_KEY",
+	// OTX — optional key; still must be cleared so "all empty" tests are clean.
 	"OTX_API_KEY", "ALIENVAULT_OTX_API_KEY", "UNEARTH_OTX_API_KEY",
 }
 
@@ -214,10 +231,14 @@ func TestLoadAPIKeys(t *testing.T) {
 }
 
 // TestLoadAPIKeys_CanonicalNames verifies the documented, unprefixed variable
-// names (the ones the README tells users to export) are honored. This is the
-// regression guard for the bug where the README documented CENSYS_PLATFORM_PAT,
-// SHODAN_API_KEY, etc. but the loader only read the UNEARTH_-prefixed aliases,
-// silently ignoring keys set per the docs.
+// names (the ones the README tells users to export) are honored for every
+// key-bearing backend. This is the regression guard for the bug where the
+// README documented CENSYS_PLATFORM_PAT, SHODAN_API_KEY, etc. but the loader
+// only read the UNEARTH_-prefixed aliases, silently ignoring keys set per the
+// docs.
+//
+// When a new backend is added to LoadAPIKeys, its canonical env-var name
+// MUST be added here so the test continues to cover the full surface.
 func TestLoadAPIKeys_CanonicalNames(t *testing.T) {
 	clearCredentialEnv(t)
 	t.Setenv("CENSYS_PLATFORM_PAT", "pat")
@@ -230,35 +251,48 @@ func TestLoadAPIKeys_CanonicalNames(t *testing.T) {
 	t.Setenv("FOFA_KEY", "fk")
 	t.Setenv("NETLAS_API_KEY", "nl")
 	t.Setenv("CRIMINALIP_API_KEY", "cip")
+	// Backends added in later packets — previously missing from this test.
+	t.Setenv("BINARYEDGE_API_KEY", "be")
+	t.Setenv("LEAKIX_API_KEY", "lx")
+	t.Setenv("ONYPHE_API_KEY", "on")
+	t.Setenv("FULLHUNT_API_KEY", "fh")
+	t.Setenv("ZOOMEYE_API_KEY", "ze")
+	t.Setenv("PDCP_API_KEY", "ch")
+	t.Setenv("VIRUSTOTAL_API_KEY", "vt")
+	t.Setenv("URLSCAN_API_KEY", "us")
+	t.Setenv("GREYNOISE_API_KEY", "gn")
+	t.Setenv("OTX_API_KEY", "otx")
 
 	k := LoadAPIKeys()
-	want := map[string]string{
-		"CensysPlatformPAT": k.CensysPlatformPAT,
-		"CensysAPIID":       k.CensysAPIID,
-		"CensysAPISecret":   k.CensysAPISecret,
-		"ShodanAPIKey":      k.ShodanAPIKey,
-		"SecurityTrailsKey": k.SecurityTrailsKey,
-		"ViewDNSKey":        k.ViewDNSKey,
-		"FOFAEmail":         k.FOFAEmail,
-		"FOFAKey":           k.FOFAKey,
-		"NetlasAPIKey":      k.NetlasAPIKey,
-		"CriminalIPKey":     k.CriminalIPKey,
+	tests := []struct {
+		field string
+		got   string
+		want  string
+	}{
+		{"CensysPlatformPAT", k.CensysPlatformPAT, "pat"},
+		{"CensysAPIID", k.CensysAPIID, "cid"},
+		{"CensysAPISecret", k.CensysAPISecret, "csec"},
+		{"ShodanAPIKey", k.ShodanAPIKey, "sho"},
+		{"SecurityTrailsKey", k.SecurityTrailsKey, "st"},
+		{"ViewDNSKey", k.ViewDNSKey, "vd"},
+		{"FOFAEmail", k.FOFAEmail, "you@example.com"},
+		{"FOFAKey", k.FOFAKey, "fk"},
+		{"NetlasAPIKey", k.NetlasAPIKey, "nl"},
+		{"CriminalIPKey", k.CriminalIPKey, "cip"},
+		{"BinaryEdgeKey", k.BinaryEdgeKey, "be"},
+		{"LeakIXKey", k.LeakIXKey, "lx"},
+		{"OnypheKey", k.OnypheKey, "on"},
+		{"FullHuntKey", k.FullHuntKey, "fh"},
+		{"ZoomEyeKey", k.ZoomEyeKey, "ze"},
+		{"ChaosKey", k.ChaosKey, "ch"},
+		{"VirusTotalKey", k.VirusTotalKey, "vt"},
+		{"URLScanKey", k.URLScanKey, "us"},
+		{"GreyNoiseKey", k.GreyNoiseKey, "gn"},
+		{"OTXKey", k.OTXKey, "otx"},
 	}
-	expected := map[string]string{
-		"CensysPlatformPAT": "pat",
-		"CensysAPIID":       "cid",
-		"CensysAPISecret":   "csec",
-		"ShodanAPIKey":      "sho",
-		"SecurityTrailsKey": "st",
-		"ViewDNSKey":        "vd",
-		"FOFAEmail":         "you@example.com",
-		"FOFAKey":           "fk",
-		"NetlasAPIKey":      "nl",
-		"CriminalIPKey":     "cip",
-	}
-	for field, got := range want {
-		if got != expected[field] {
-			t.Errorf("%s: want %q, got %q", field, expected[field], got)
+	for _, tc := range tests {
+		if tc.got != tc.want {
+			t.Errorf("%s: want %q, got %q", tc.field, tc.want, tc.got)
 		}
 	}
 }
@@ -382,6 +416,80 @@ func TestCredentialStatus_OTX(t *testing.T) {
 	t.Setenv("UNEARTH_OTX_API_KEY", "otx-legacy")
 	if !CredentialStatus(LoadAPIKeys())["otx"] {
 		t.Error("otx should be true when UNEARTH_OTX_API_KEY is set")
+	}
+}
+
+// TestCredentialStatus_NewBackends verifies that the CredentialStatus map
+// correctly tracks presence/absence for the nine backends that were added
+// after the initial credential coverage tests were written (BinaryEdge, LeakIX,
+// Onyphe, FullHunt, ZoomEye, Chaos/PDCP, VirusTotal, URLScan, GreyNoise).
+// Before the env-isolation fix, five of these (ZoomEye, Chaos, VirusTotal,
+// URLScan, GreyNoise) were absent from allCredentialEnvVars, so a real
+// GREYNOISE_API_KEY (for example) in the CI environment would silently bleed
+// into every test that called clearCredentialEnv.
+func TestCredentialStatus_NewBackends(t *testing.T) {
+	tests := []struct {
+		name    string // CredentialStatus map key
+		envVar  string // canonical env-var name to set
+		legacyVar string // UNEARTH_-prefixed alias (empty if none)
+	}{
+		{"binaryedge", "BINARYEDGE_API_KEY", "UNEARTH_BINARYEDGE_API_KEY"},
+		{"leakix", "LEAKIX_API_KEY", "UNEARTH_LEAKIX_API_KEY"},
+		{"onyphe", "ONYPHE_API_KEY", "UNEARTH_ONYPHE_API_KEY"},
+		{"fullhunt", "FULLHUNT_API_KEY", "UNEARTH_FULLHUNT_API_KEY"},
+		{"zoomeye", "ZOOMEYE_API_KEY", "UNEARTH_ZOOMEYE_API_KEY"},
+		{"chaos", "PDCP_API_KEY", "UNEARTH_PDCP_API_KEY"},
+		{"virustotal", "VIRUSTOTAL_API_KEY", "UNEARTH_VIRUSTOTAL_API_KEY"},
+		{"urlscan", "URLSCAN_API_KEY", "UNEARTH_URLSCAN_API_KEY"},
+		{"greynoise", "GREYNOISE_API_KEY", "UNEARTH_GREYNOISE_API_KEY"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Start from a fully-cleared environment.
+			clearCredentialEnv(t)
+
+			// With no key set the status entry must be false.
+			if CredentialStatus(LoadAPIKeys())[tc.name] {
+				t.Errorf("%s: should be false with no key in environment", tc.name)
+			}
+
+			// Setting the canonical name must flip the entry to true.
+			t.Setenv(tc.envVar, "test-key")
+			if !CredentialStatus(LoadAPIKeys())[tc.name] {
+				t.Errorf("%s: should be true when %s is set", tc.name, tc.envVar)
+			}
+
+			// If a legacy alias exists, it must also work (canonical cleared).
+			if tc.legacyVar != "" {
+				clearCredentialEnv(t)
+				t.Setenv(tc.legacyVar, "legacy-key")
+				if !CredentialStatus(LoadAPIKeys())[tc.name] {
+					t.Errorf("%s: should be true when legacy alias %s is set", tc.name, tc.legacyVar)
+				}
+			}
+		})
+	}
+}
+
+// TestCredentialStatus_VTAliases verifies the two accepted alternative names
+// for the VirusTotal key (VT_API_KEY and UNEARTH_VIRUSTOTAL_API_KEY) in
+// addition to the canonical VIRUSTOTAL_API_KEY covered above.
+func TestCredentialStatus_VTAliases(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("VT_API_KEY", "vt-alias")
+	if !CredentialStatus(LoadAPIKeys())["virustotal"] {
+		t.Error("virustotal should be true when VT_API_KEY is set")
+	}
+}
+
+// TestCredentialStatus_ChaosAliases verifies the CHAOS_API_KEY alias for the
+// Chaos/PDCP technique (three accepted names: PDCP_API_KEY, CHAOS_API_KEY,
+// UNEARTH_PDCP_API_KEY).
+func TestCredentialStatus_ChaosAliases(t *testing.T) {
+	clearCredentialEnv(t)
+	t.Setenv("CHAOS_API_KEY", "chaos-alias")
+	if !CredentialStatus(LoadAPIKeys())["chaos"] {
+		t.Error("chaos should be true when CHAOS_API_KEY is set")
 	}
 }
 

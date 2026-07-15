@@ -7,7 +7,7 @@
 
 **Unearth the real origin server hiding behind a CDN.**
 
-`unearth` discovers origin IPs by running seventeen recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, email `Received:`-header mining, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
+`unearth` discovers origin IPs by running thirty-two recon techniques in parallel — certificate transparency pivots, DNS history, SPF/MX analysis, subdomain enumeration, email `Received:`-header mining, JARM TLS fingerprinting, ASN-range sweeps, and more — then ranks candidate IPs by how many techniques independently agree. The result is a scored list of origin candidates, from most to least confident.
 
 ---
 
