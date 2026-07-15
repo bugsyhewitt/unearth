@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/unearth-tool/unearth/pkg/techniques"
 )
 
 func TestLoadWeights_EmbeddedDefaults(t *testing.T) {
@@ -401,5 +403,22 @@ func TestEmbeddedAndConfigsYAMLMatch(t *testing.T) {
 	}
 	if string(embedded) != string(canonical) {
 		t.Fatal("configs/default-weights.yaml and embedded pkg/config/default-weights.yaml have diverged — keep them byte-identical")
+	}
+}
+
+// TestKnownTechniquesMatchesRegistry verifies that every technique registered
+// at init time appears in knownTechniques. If a technique is missing, users who
+// try to override its weight in a weights.yaml file receive a spurious
+// "unknown technique" warning, and the calibrate subcommand cannot surface
+// weight suggestions for it.
+//
+// This test guards against the v1.1 regression where seven techniques shipped
+// (split_dns, email_header, jarm_fingerprint, asn_sweep, shodan_cve,
+// favicon_hash, dns_txt_leak) but were never added to knownTechniques.
+func TestKnownTechniquesMatchesRegistry(t *testing.T) {
+	for _, tech := range techniques.All() {
+		if _, ok := knownTechniques[tech.Name()]; !ok {
+			t.Errorf("registered technique %q missing from knownTechniques in pkg/config/config.go — add it so users can override its weight without spurious warnings", tech.Name())
+		}
 	}
 }

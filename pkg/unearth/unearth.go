@@ -465,6 +465,10 @@ func hasKeyFor(name string, k techniques.APIKeys) bool {
 		return k.ShodanAPIKey != ""
 	case "shodan_cve":
 		return k.ShodanAPIKey != ""
+	case "favicon_hash":
+		// Either Shodan or Censys is sufficient; the technique skips whichever
+		// backend's key is absent and runs with the one that is present.
+		return k.ShodanAPIKey != "" || k.CensysPlatformPAT != ""
 	case "fofa_cert":
 		return k.FOFAEmail != "" && k.FOFAKey != ""
 	case "netlas_cert":

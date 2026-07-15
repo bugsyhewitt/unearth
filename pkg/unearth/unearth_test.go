@@ -322,3 +322,62 @@ func TestDiscover_ContextAlreadyCancelled(t *testing.T) {
 		t.Error("expected engine error on pre-cancelled context")
 	}
 }
+
+// TestHasKeyFor_FaviconHash is a regression test for the bug where
+// favicon_hash was missing from the hasKeyFor switch and fell through to the
+// default case (return false), silently dropping the technique even when
+// SHODAN_API_KEY or CENSYS_PLATFORM_PAT was configured.
+func TestHasKeyFor_FaviconHash(t *testing.T) {
+	tests := []struct {
+		name string
+		keys techniques.APIKeys
+		want bool
+	}{
+		{"shodan only", techniques.APIKeys{ShodanAPIKey: "s"}, true},
+		{"censys only", techniques.APIKeys{CensysPlatformPAT: "c"}, true},
+		{"both", techniques.APIKeys{ShodanAPIKey: "s", CensysPlatformPAT: "c"}, true},
+		{"neither", techniques.APIKeys{}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasKeyFor("favicon_hash", tc.keys); got != tc.want {
+				t.Errorf("hasKeyFor(favicon_hash, %+v) = %v, want %v", tc.keys, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestHasKeyFor_AllKeyRequiringTechniquesCovered verifies that every
+// registered technique declaring RequiresAPIKey()==true has an explicit case
+// in hasKeyFor. The default case returns false, which would silently drop the
+// technique even when its key is configured.
+func TestHasKeyFor_AllKeyRequiringTechniquesCovered(t *testing.T) {
+	// A fully-populated APIKeys struct that covers every backend credential.
+	full := techniques.APIKeys{
+		CensysPlatformPAT: "c",
+		ShodanAPIKey:      "s",
+		SecurityTrailsKey: "st",
+		ViewDNSKey:        "vd",
+		FOFAEmail:         "e",
+		FOFAKey:           "k",
+		NetlasAPIKey:      "n",
+		CriminalIPKey:     "ci",
+		BinaryEdgeKey:     "be",
+		LeakIXKey:         "lx",
+		OnypheKey:         "on",
+		FullHuntKey:       "fh",
+		ZoomEyeKey:        "ze",
+		ChaosKey:          "ch",
+		VirusTotalKey:     "vt",
+		URLScanKey:        "us",
+		GreyNoiseKey:      "gn",
+	}
+	for _, tech := range techniques.All() {
+		if !tech.RequiresAPIKey() {
+			continue
+		}
+		if !hasKeyFor(tech.Name(), full) {
+			t.Errorf("technique %q declares RequiresAPIKey()==true but hasKeyFor returns false with all credentials populated; add a case for it in hasKeyFor()", tech.Name())
+		}
+	}
+}
