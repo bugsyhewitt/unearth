@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -719,6 +720,175 @@ func TestRoot_SARIFOutput_MultiTarget(t *testing.T) {
 		}
 	}
 }
+
+// --- --min-confidence tests -----------------------------------------------
+
+// fakeResultWithScores builds a Result whose candidate scores are explicit.
+func fakeResultWithScores(target string, scores ...float64) *unearth.Result {
+	r := &unearth.Result{
+		Target:      target,
+		CDNDetected: "cloudflare",
+	}
+	for i, sc := range scores {
+		r.Candidates = append(r.Candidates, unearth.ScoredIP{
+			IP:           fmt.Sprintf("10.0.0.%d", i+1),
+			Score:        sc,
+			Corroboration: 1,
+			SingleSource:  true,
+			Techniques:   []unearth.TechniqueHit{{Name: "crtsh", Weight: 0.55}},
+		})
+	}
+	return r
+}
+
+func TestRoot_MinConfidence_InvalidBelowZero(t *testing.T) {
+	code, _, stderr := captured(t, "--min-confidence", "-0.1", "example.test")
+	if code != exitUsageError {
+		t.Errorf("exit code: want %d, got %d", exitUsageError, code)
+	}
+	if !strings.Contains(stderr, "min-confidence") {
+		t.Errorf("stderr should mention min-confidence: %q", stderr)
+	}
+}
+
+func TestRoot_MinConfidence_InvalidAboveOne(t *testing.T) {
+	code, _, stderr := captured(t, "--min-confidence", "1.1", "example.test")
+	if code != exitUsageError {
+		t.Errorf("exit code: want %d, got %d", exitUsageError, code)
+	}
+	if !strings.Contains(stderr, "min-confidence") {
+		t.Errorf("stderr should mention min-confidence: %q", stderr)
+	}
+}
+
+func TestRoot_MinConfidence_ZeroShowsAll(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.9, 0.5, 0.1), nil
+	})
+	code, stdout, _ := captured(t, "--min-confidence", "0", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 3 {
+		t.Errorf("--min-confidence 0 should show all 3 candidates, got %d lines: %q", len(lines), stdout)
+	}
+}
+
+func TestRoot_MinConfidence_FiltersJSONL(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		// Three candidates: 0.9, 0.5, 0.3. Threshold 0.5 keeps first two.
+		return fakeResultWithScores(target, 0.9, 0.5, 0.3), nil
+	})
+	code, stdout, _ := captured(t, "--min-confidence", "0.5", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 2 {
+		t.Errorf("--min-confidence 0.5 should keep 2 candidates (>=0.5), got %d lines: %q", len(lines), stdout)
+	}
+	// Verify the surviving candidates carry scores >= 0.5.
+	for _, line := range lines {
+		var row struct {
+			Score float64 `json:"score"`
+		}
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			t.Fatalf("json parse: %v", err)
+		}
+		if row.Score < 0.5 {
+			t.Errorf("candidate with score %.2f should have been filtered out", row.Score)
+		}
+	}
+}
+
+func TestRoot_MinConfidence_ThresholdIsInclusive(t *testing.T) {
+	// A candidate whose score exactly equals the threshold must be kept.
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.75, 0.74), nil
+	})
+	code, stdout, _ := captured(t, "--min-confidence", "0.75", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	if len(lines) != 1 {
+		t.Errorf("only the candidate at exactly 0.75 should survive, got %d lines: %q", len(lines), stdout)
+	}
+}
+
+func TestRoot_MinConfidence_FiltersJSON(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.9, 0.4), nil
+	})
+	code, stdout, _ := captured(t, "-o", "json", "--min-confidence", "0.5", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var got []unearth.Result
+	if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+		t.Fatalf("json parse: %v\nout: %s", err, stdout)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 result, got %d", len(got))
+	}
+	if len(got[0].Candidates) != 1 {
+		t.Errorf("--min-confidence 0.5 should leave 1 candidate in json output, got %d", len(got[0].Candidates))
+	}
+	if got[0].Candidates[0].Score < 0.5 {
+		t.Errorf("surviving candidate score %.2f is below threshold", got[0].Candidates[0].Score)
+	}
+}
+
+func TestRoot_MinConfidence_FiltersSARIF(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.9, 0.4, 0.2), nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "--min-confidence", "0.8", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v\nout: %s", err, stdout)
+	}
+	if len(doc.Runs[0].Results) != 1 {
+		t.Errorf("--min-confidence 0.8 should leave 1 SARIF result, got %d", len(doc.Runs[0].Results))
+	}
+}
+
+func TestRoot_MinConfidence_FiltersTable(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.9, 0.3), nil
+	})
+	code, stdout, _ := captured(t, "-o", "table", "--min-confidence", "0.5", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	// 0.9 passes, 0.3 is filtered. Only one IP should appear.
+	if strings.Contains(stdout, "10.0.0.2") {
+		t.Errorf("10.0.0.2 (score 0.3) should have been filtered out:\n%s", stdout)
+	}
+	if !strings.Contains(stdout, "10.0.0.1") {
+		t.Errorf("10.0.0.1 (score 0.9) should appear in table output:\n%s", stdout)
+	}
+}
+
+func TestRoot_MinConfidence_AllFilteredIsEmptyOutput(t *testing.T) {
+	// When every candidate is below the threshold, output should be empty (not an error).
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResultWithScores(target, 0.3, 0.2), nil
+	})
+	code, stdout, _ := captured(t, "--min-confidence", "0.9", "example.test")
+	if code != 0 {
+		t.Errorf("all-filtered should still exit 0, got %d", code)
+	}
+	if strings.TrimSpace(stdout) != "" {
+		t.Errorf("no candidates above threshold; stdout should be empty, got %q", stdout)
+	}
+}
+
+// --- SARIF level tests -----------------------------------------------
 
 // TestSarifLevel_Boundaries verifies the score→level mapping at boundary values.
 func TestSarifLevel_Boundaries(t *testing.T) {

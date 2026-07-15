@@ -83,7 +83,7 @@ func TestUsageError_HasStableErrorString(t *testing.T) {
 }
 
 func TestNewSink_InvalidFormatRejected(t *testing.T) {
-	if _, err := newSink("xml", false, 0); err == nil {
+	if _, err := newSink("xml", false, 0, 0); err == nil {
 		t.Error("expected error for invalid format")
 	}
 }
@@ -110,6 +110,35 @@ func TestColorScore_BandsAndReset(t *testing.T) {
 	}
 	if s.colorScore(0.1) != ansiRed {
 		t.Errorf("low band: %q", s.colorScore(0.1))
+	}
+}
+
+func TestFilterByConfidence(t *testing.T) {
+	candidates := []unearth.ScoredIP{
+		{IP: "1.1.1.1", Score: 0.9},
+		{IP: "2.2.2.2", Score: 0.5},
+		{IP: "3.3.3.3", Score: 0.2},
+	}
+	cases := []struct {
+		threshold float64
+		wantLen   int
+		desc      string
+	}{
+		{0, 3, "zero means no filter"},
+		{0.5, 2, ">=0.5 keeps first two"},
+		{0.9, 1, ">=0.9 keeps only first"},
+		{1.0, 0, ">=1.0 keeps nothing"},
+		{0.2, 3, ">=0.2 keeps all three (inclusive)"},
+	}
+	for _, tc := range cases {
+		got := filterByConfidence(candidates, tc.threshold)
+		if len(got) != tc.wantLen {
+			t.Errorf("threshold=%.1f (%s): want %d, got %d", tc.threshold, tc.desc, tc.wantLen, len(got))
+		}
+		// Verify original slice is not modified.
+		if len(candidates) != 3 {
+			t.Errorf("filterByConfidence must not modify input slice")
+		}
 	}
 }
 

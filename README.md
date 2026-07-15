@@ -39,6 +39,9 @@ subfinder -d target.com -silent | unearth -l - | jq -r '.candidates[].candidate_
 
 # Large target list: discover up to 8 targets concurrently (output stays in input order)
 subfinder -d target.com -silent | unearth -l - --pipeline-batch 8 | jq -r '.candidate_ip' | httpx
+
+# Only show high-confidence candidates (score >= 0.8)
+unearth --min-confidence 0.8 example.com
 ```
 
 ---
@@ -220,24 +223,25 @@ subfinder -d target.com -silent | unearth -l - --pipeline-batch 8 -o sarif > ori
 unearth [flags] [target]
 
 Flags:
-  -l, --list string         File of targets (one per line, # comments OK)
-      --active              Include active-tier techniques
-      --aggressive          Include aggressive-tier techniques (implies --active)
-  -o, --output string       Output format: jsonl | json | table | sarif (default "jsonl")
-      --top int             Limit output to top N candidates (default 0 = all)
-  -c, --concurrent int      Parallel technique slots (default 10)
-      --timeout duration    Overall run timeout (default 5m0s)
-      --no-cache            Bypass the cache
-      --refresh             Ignore cache; write fresh results
-      --max-censys int      Censys query cap per target (default 10)
-      --max-shodan int      Shodan query cap per target (default 10)
-      --max-st int          SecurityTrails query cap per target (default 20)
-      --weights string      Path to technique-weight overrides YAML
-      --email-file string   Path to a raw email (.eml); its Received: headers are mined for origin IPs
-      --cve string          CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE
-      --pipeline-batch int  Targets to discover concurrently in list/stdin mode (default 1 = sequential)
-      --verbose             Print per-technique results to stderr
-      --silent              Suppress all stderr output
+  -l, --list string             File of targets (one per line, # comments OK)
+      --active                  Include active-tier techniques
+      --aggressive              Include aggressive-tier techniques (implies --active)
+  -o, --output string           Output format: jsonl | json | table | sarif (default "jsonl")
+      --top int                 Limit output to top N candidates (default 50, 0 = all)
+      --min-confidence float    Hide candidates with score below this threshold (default 0 = show all, range 0.0–1.0)
+      --concurrency int         Parallel technique slots (default 10)
+      --timeout duration        Overall run timeout (default 5m0s)
+      --no-cache                Bypass the cache
+      --refresh                 Ignore cache; write fresh results
+      --max-censys int          Censys query cap per target (default 10)
+      --max-shodan int          Shodan query cap per target (default 10)
+      --max-st int              SecurityTrails query cap per target (default 20)
+      --weights string          Path to technique-weight overrides YAML
+      --email-file string       Path to a raw email (.eml); its Received: headers are mined for origin IPs
+      --cve string              CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE
+      --pipeline-batch int      Targets to discover concurrently in list/stdin mode (default 1 = sequential)
+      --verbose                 Print per-technique results to stderr
+      --silent                  Suppress all stderr output
 
 Subcommands:
   unearth version           Print version, commit, and build date

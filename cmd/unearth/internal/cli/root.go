@@ -40,6 +40,7 @@ type rootFlags struct {
 	emailFile     string
 	cveID         string
 	pipelineBatch int
+	minConfidence float64
 }
 
 // runner is the indirection through which the root command invokes
@@ -95,6 +96,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&f.emailFile, "email-file", "", "Path to a raw email (.eml) whose Received: headers are mined for origin IPs")
 	cmd.Flags().StringVar(&f.cveID, "cve", "", "CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE")
 	cmd.Flags().IntVar(&f.pipelineBatch, "pipeline-batch", 1, "Number of targets to discover concurrently (1 = sequential; output stays in input order)")
+	cmd.Flags().Float64Var(&f.minConfidence, "min-confidence", 0, "Hide candidates with score below this threshold (0 = show all, range 0.0–1.0)")
 
 	cmd.AddCommand(newVersionCmd(stdout))
 	cmd.AddCommand(newCacheCmd(stdin, stdout, stderr))
@@ -113,6 +115,9 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 	}
 	if f.pipelineBatch < 1 {
 		return errUsage("--pipeline-batch must be >= 1")
+	}
+	if f.minConfidence < 0 || f.minConfidence > 1 {
+		return errUsage("--min-confidence must be between 0.0 and 1.0")
 	}
 
 	targets, sourceNotice, err := resolveTargets(f.list, posArgs, stdin)
@@ -149,7 +154,7 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		announceTierNotice(stderr, opts.Tier)
 	}
 
-	sink, err := newSink(f.output, isTTY(stdout), f.top)
+	sink, err := newSink(f.output, isTTY(stdout), f.top, f.minConfidence)
 	if err != nil {
 		return err
 	}

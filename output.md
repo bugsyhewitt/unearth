@@ -1,81 +1,75 @@
-# unearth — Phase 2 improvement: fix credential test environment isolation gap
+# unearth — Phase 2 improvement: --min-confidence confidence-threshold filter
 
 ## What was done
 
-Five credential sets were absent from `allCredentialEnvVars` in
-`pkg/config/config_test.go`, and nine of the nineteen key-bearing backends
-were absent from the canonical-name test. Additionally, the README's technique
-count was out of date.
+Added `--min-confidence <float>` to the `unearth` CLI. The flag hides candidates
+whose noisy-OR score falls below the supplied threshold, across all four output
+formats (jsonl, json, table, sarif). With `--min-confidence 0` (the default),
+all candidates are shown and behaviour is unchanged.
 
-### Root problem: `allCredentialEnvVars` missing five credential sets
+## The problem
 
-`clearCredentialEnv` calls `t.Setenv(name, "")` for every variable in
-`allCredentialEnvVars` to prevent real-environment keys from leaking into
-tests that intend to start from a clean state. Five sets were missing:
+`unearth` can surface dozens of candidates per target when many passive techniques
+agree on several IPs. Operators reviewing output in a pipeline (e.g. piping JSONL
+into `httpx` or uploading SARIF to GitHub Code Scanning) often only care about
+high-confidence hits and want to filter the noise at the source rather than
+post-processing with `jq '.score >= 0.8'`.
 
-| Missing from `allCredentialEnvVars` | Env vars |
-|---|---|
-| ZoomEye | `ZOOMEYE_API_KEY`, `UNEARTH_ZOOMEYE_API_KEY` |
-| Chaos/PDCP | `PDCP_API_KEY`, `CHAOS_API_KEY`, `UNEARTH_PDCP_API_KEY` |
-| VirusTotal | `VIRUSTOTAL_API_KEY`, `VT_API_KEY`, `UNEARTH_VIRUSTOTAL_API_KEY` |
-| URLScan | `URLSCAN_API_KEY`, `UNEARTH_URLSCAN_API_KEY` |
-| GreyNoise | `GREYNOISE_API_KEY`, `UNEARTH_GREYNOISE_API_KEY` |
+## Implementation
 
-Impact: any CI runner (or developer) with these API keys set in the shell
-environment would see non-empty values bleed into tests. For example,
-`TestLoadAPIKeys_EmptyEnv` intended to verify a zero-key state but
-`clearCredentialEnv` did not clear `GREYNOISE_API_KEY`, so
-`k.GreyNoiseKey` could be non-empty while the test passed. Tests that then
-asserted specific CredentialStatus map values could silently produce the
-wrong result.
+### New flag
 
-**Fix:** added all five missing sets (10 canonical vars + aliases) to
-`allCredentialEnvVars`, with inline comments explaining why each was absent.
+`--min-confidence float` — range `[0.0, 1.0]`, default `0` (show all).
+Validated at parse time; values outside the range return a usage error.
 
-### `TestLoadAPIKeys_CanonicalNames` only covered 10 of 19 key-bearing backends
+### Changed files
 
-The test verified that the unprefixed canonical env-var name (the one the
-README tells users to export) is read by `LoadAPIKeys`. It covered:
-Censys, Shodan, SecurityTrails, ViewDNS, FOFA, Netlas, CriminalIP. Missing:
-BinaryEdge, LeakIX, Onyphe, FullHunt, ZoomEye, Chaos, VirusTotal, URLScan,
-GreyNoise, OTX.
+**`cmd/unearth/internal/cli/root.go`**
+- Added `minConfidence float64` to `rootFlags` struct.
+- Registered `--min-confidence` flag with cobra.
+- Validation: `if f.minConfidence < 0 || f.minConfidence > 1 { return errUsage(...) }`.
+- Passes `f.minConfidence` to `newSink`.
 
-**Fix:** extended the test to assert all 20 struct fields map to their
-canonical env-var values; restructured as a slice of `{field, got, want}`
-entries so a new backend needs only one line to add.
+**`cmd/unearth/internal/cli/output.go`**
+- Added `minConfidence float64` field to `jsonlSink`, `jsonSink`, `tableSink`,
+  `sarifSink`.
+- Updated `newSink` signature to accept `minConfidence float64` and thread it
+  into each sink struct.
+- Added `filterByConfidence(candidates []unearth.ScoredIP, minConfidence float64)
+  []unearth.ScoredIP` helper. The filter is a no-op when `minConfidence <= 0`.
+  The input slice is never modified (a new slice is allocated).
+- Applied the filter before the existing `capN(top, ...)` cap in every
+  sink's `write` / `buildResults`:
+  - `jsonlSink.write`: `candidates := filterByConfidence(res.Candidates, s.minConfidence)`
+  - `jsonSink.flush`: filter each result's candidates before truncating
+  - `tableSink.write`: filter before the tabwriter loop
+  - `sarifSink.buildResults`: filter before the top cap
 
-### Missing `CredentialStatus` test coverage for nine backends
+**`cmd/unearth/internal/cli/extra_test.go`**
+- Updated existing `TestNewSink_InvalidFormatRejected` call to use the new
+  4-argument `newSink` signature.
+- Added `TestFilterByConfidence` — unit test for the helper directly,
+  covering: zero threshold (no-op), `>= threshold` semantics (inclusive),
+  and that the input slice is not mutated.
 
-`TestCredentialStatus_CriminalIP` and `TestCredentialStatus_OTX` existed but
-no dedicated tests covered: BinaryEdge, LeakIX, Onyphe, FullHunt, ZoomEye,
-Chaos, VirusTotal, URLScan, GreyNoise.
+**`cmd/unearth/internal/cli/cli_test.go`**
+- Added `fakeResultWithScores` helper that builds a result with explicit scores.
+- Added 8 new tests:
+  - `TestRoot_MinConfidence_InvalidBelowZero`
+  - `TestRoot_MinConfidence_InvalidAboveOne`
+  - `TestRoot_MinConfidence_ZeroShowsAll`
+  - `TestRoot_MinConfidence_FiltersJSONL`
+  - `TestRoot_MinConfidence_ThresholdIsInclusive`
+  - `TestRoot_MinConfidence_FiltersJSON`
+  - `TestRoot_MinConfidence_FiltersSARIF`
+  - `TestRoot_MinConfidence_FiltersTable`
+  - `TestRoot_MinConfidence_AllFilteredIsEmptyOutput`
 
-**Fix:** added three new tests:
-
-- `TestCredentialStatus_NewBackends` — table-driven, one sub-test per
-  backend; each sub-test verifies false with no key, true with canonical
-  name, and true with the UNEARTH_-prefixed legacy alias.
-- `TestCredentialStatus_VTAliases` — verifies the `VT_API_KEY` alias for
-  VirusTotal (three accepted names).
-- `TestCredentialStatus_ChaosAliases` — verifies the `CHAOS_API_KEY` alias
-  for Chaos/PDCP (three accepted names).
-
-### README technique count corrected
-
-The introduction said "seventeen recon techniques" but the tool now ships 32.
-Updated to "thirty-two" and expanded the brief technique list to include
-JARM fingerprinting and ASN-range sweeps (which were absent from the summary
-even though they shipped months ago).
-
-## Files changed
-
-- `pkg/config/config_test.go` — fix `allCredentialEnvVars` (5 missing sets);
-  extend `TestLoadAPIKeys_CanonicalNames` to all 20 fields; add
-  `TestCredentialStatus_NewBackends`, `TestCredentialStatus_VTAliases`,
-  `TestCredentialStatus_ChaosAliases`
-- `README.md` — update technique count from "seventeen" to "thirty-two";
-  expand technique list in introduction
+**`README.md`**
+- Updated CLI reference to add `--min-confidence` with description.
+- Corrected `--top` default (50, not 0) and `--concurrency` name.
+- Added a quick-start example: `unearth --min-confidence 0.8 example.com`.
 
 ## Test results
 
-All 10 test packages pass under `go test ./... -count=1 -race`. See `test-output.txt`.
+All 10 packages pass under `go test ./... -count=1 -race`. See `test-output.txt`.
