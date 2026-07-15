@@ -25,24 +25,43 @@ type sink interface {
 	flush(stdout io.Writer, all []*unearth.Result) error
 }
 
-func newSink(format string, useColor bool, top int) (sink, error) {
+func newSink(format string, useColor bool, top int, minConfidence float64) (sink, error) {
 	switch format {
 	case "jsonl":
-		return &jsonlSink{top: top}, nil
+		return &jsonlSink{top: top, minConfidence: minConfidence}, nil
 	case "json":
-		return &jsonSink{top: top}, nil
+		return &jsonSink{top: top, minConfidence: minConfidence}, nil
 	case "table":
-		return &tableSink{top: top, color: useColor}, nil
+		return &tableSink{top: top, color: useColor, minConfidence: minConfidence}, nil
 	case "sarif":
-		return &sarifSink{top: top}, nil
+		return &sarifSink{top: top, minConfidence: minConfidence}, nil
 	default:
 		return nil, errUsage("invalid --output: " + format)
 	}
 }
 
+// filterByConfidence returns the candidates whose Score >= minConfidence.
+// When minConfidence is 0, all candidates are returned unchanged (no-op).
+// The input slice is not modified.
+func filterByConfidence(candidates []unearth.ScoredIP, minConfidence float64) []unearth.ScoredIP {
+	if minConfidence <= 0 {
+		return candidates
+	}
+	out := make([]unearth.ScoredIP, 0, len(candidates))
+	for _, c := range candidates {
+		if c.Score >= minConfidence {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // --- jsonl -----------------------------------------------------------
 
-type jsonlSink struct{ top int }
+type jsonlSink struct {
+	top           int
+	minConfidence float64
+}
 
 // jsonlRow is one line of JSONL: an augmented ScoredIP carrying the
 // target it belongs to.
@@ -53,8 +72,9 @@ type jsonlRow struct {
 
 func (s *jsonlSink) write(stdout, stderr io.Writer, res *unearth.Result, f *rootFlags) error {
 	enc := json.NewEncoder(stdout)
-	limit := capN(s.top, len(res.Candidates))
-	for _, c := range res.Candidates[:limit] {
+	candidates := filterByConfidence(res.Candidates, s.minConfidence)
+	limit := capN(s.top, len(candidates))
+	for _, c := range candidates[:limit] {
 		if err := enc.Encode(jsonlRow{Target: res.Target, ScoredIP: c}); err != nil {
 			return err
 		}
@@ -71,18 +91,22 @@ func (*jsonlSink) flush(io.Writer, []*unearth.Result) error { return nil }
 
 // --- json ------------------------------------------------------------
 
-type jsonSink struct{ top int }
+type jsonSink struct {
+	top           int
+	minConfidence float64
+}
 
 func (*jsonSink) write(io.Writer, io.Writer, *unearth.Result, *rootFlags) error { return nil }
 
 func (s *jsonSink) flush(stdout io.Writer, all []*unearth.Result) error {
 	capped := make([]*unearth.Result, len(all))
 	for i, r := range all {
-		// Make a shallow copy so we can truncate Candidates without
-		// mutating the caller's slice.
+		// Make a shallow copy so we can filter and truncate Candidates
+		// without mutating the caller's slice.
 		cp := *r
-		n := capN(s.top, len(cp.Candidates))
-		cp.Candidates = cp.Candidates[:n]
+		filtered := filterByConfidence(cp.Candidates, s.minConfidence)
+		n := capN(s.top, len(filtered))
+		cp.Candidates = filtered[:n]
 		capped[i] = &cp
 	}
 	enc := json.NewEncoder(stdout)
@@ -93,8 +117,9 @@ func (s *jsonSink) flush(stdout io.Writer, all []*unearth.Result) error {
 // --- table -----------------------------------------------------------
 
 type tableSink struct {
-	top   int
-	color bool
+	top           int
+	color         bool
+	minConfidence float64
 }
 
 const (
@@ -116,8 +141,9 @@ func (s *tableSink) write(stdout, _ io.Writer, res *unearth.Result, _ *rootFlags
 	if _, err := fmt.Fprintln(tw, "  IP\tSCORE\tCORROB\tTECHNIQUES"); err != nil {
 		return err
 	}
-	limit := capN(s.top, len(res.Candidates))
-	for _, c := range res.Candidates[:limit] {
+	candidates := filterByConfidence(res.Candidates, s.minConfidence)
+	limit := capN(s.top, len(candidates))
+	for _, c := range candidates[:limit] {
 		score := fmt.Sprintf("%.3f", c.Score)
 		if s.color {
 			score = s.colorScore(c.Score) + score + ansiReset
@@ -173,7 +199,10 @@ func (s *tableSink) colorScore(score float64) string {
 // Results are accumulated per write() call and emitted as a single document.
 //
 // Spec reference: https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
-type sarifSink struct{ top int }
+type sarifSink struct {
+	top           int
+	minConfidence float64
+}
 
 func (*sarifSink) write(io.Writer, io.Writer, *unearth.Result, *rootFlags) error { return nil }
 
@@ -304,8 +333,9 @@ func (s *sarifSink) buildDocument(all []*unearth.Result) sarifDocument {
 func (s *sarifSink) buildResults(all []*unearth.Result) []sarifResult {
 	var out []sarifResult
 	for _, r := range all {
-		limit := capN(s.top, len(r.Candidates))
-		for _, c := range r.Candidates[:limit] {
+		candidates := filterByConfidence(r.Candidates, s.minConfidence)
+		limit := capN(s.top, len(candidates))
+		for _, c := range candidates[:limit] {
 			techNames := make([]string, len(c.Techniques))
 			for i, h := range c.Techniques {
 				techNames[i] = h.Name
