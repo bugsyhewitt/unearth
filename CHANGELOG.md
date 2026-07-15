@@ -3,7 +3,7 @@
 All notable changes to `unearth` are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.1.0] — 2026-07-15
 
 ### Added
 
@@ -111,4 +111,5 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Cross-platform: linux/darwin × amd64/arm64 release artifacts
 - GoReleaser release pipeline with version stamping via ldflags
 
+[1.1.0]: https://github.com/bugsyhewitt/unearth/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/bugsyhewitt/unearth/releases/tag/v1.0.0
