@@ -1,86 +1,80 @@
-# unearth — Phase 2 improvement: --exclude-technique flag
+# unearth v1.1.0 release — Worker output
 
-## What was done
+## Summary
 
-Added `--exclude-technique <name>[,<name>...]` to the `unearth` CLI and the
-`unearth.Options` library API. The flag lets operators skip one or more
-techniques by name for a single run, without changing any global configuration.
+Shipped a **v1.1.0** release for `unearth`, capturing 45 post-v1.0.0 commits that
+had accumulated on `main` since the initial `v1.0.0` tag (2026-05-17, commit `bef8eaf`).
 
-## The problem
+## Key finding: v1.0.0 already existed
 
-`unearth` runs all tier-appropriate techniques for every target. Operators
-sometimes need to suppress specific techniques:
+The Team Lead task was written assuming v1.0.0 had not been cut. In fact:
+- Tag `v1.0.0` already exists at `bef8eaf` (the initial release, 2026-05-17)
+- 45 subsequent commits added 20 new techniques, 10 CDN providers, SARIF output, new
+  CLI flags, MCP utility tools, and several bug fixes
+- The in-code version sentinel (`internal/httpclient/httpclient.go`) was never bumped
+  from `"0.1.0-dev"` after the initial release — that's why the roster showed "v0.1"
 
-- A backend is rate-limiting today (`crtsh`, `shodan_cert`)
-- A technique is irrelevant for the target (e.g. no MX record, `spf_mx` will
-  always miss)
-- Troubleshooting: narrow down which technique is producing noisy results
-- Reproducing a result without a specific technique to isolate signal
+## Changes made
 
-Previously the only options were tier flags (`--active`, `--passive`) or
-weights YAML to zero out a technique's weight — neither is ergonomic for
-ad-hoc exclusions and the weights file persists across runs.
+### `internal/httpclient/httpclient.go`
+- Bumped `var Version` from `"0.1.0-dev"` to `"1.1.0"`
 
-## Implementation
+### `CHANGELOG.md`
+- Promoted `## [Unreleased]` to `## [1.1.0] — 2026-07-15`
+- Added `[1.1.0]: https://github.com/bugsyhewitt/unearth/compare/v1.0.0...v1.1.0`
+  to the footer link list
 
-### New library field
+## Tests
 
-`unearth.Options.ExcludeTechniques []string` — names to skip. Empty means no
-exclusions (the default; existing callers are unaffected). Unknown names produce
-a `Warnings` entry rather than an error, so a mistyped name is visible but never
-breaks a run.
+All 10 test packages pass with `-race`:
 
-### New CLI flag
-
-`--exclude-technique string` — registered as a `StringSlice` flag, which
-accepts both comma-separated values and repeated flags:
-
-```sh
-# Comma-separated
-unearth --exclude-technique crtsh,shodan_cert example.com
-
-# Repeated flag (same result)
-unearth --exclude-technique crtsh --exclude-technique spf_mx example.com
+```
+ok  github.com/unearth-tool/unearth/cmd/unearth/internal/cli   1.244s
+ok  github.com/unearth-tool/unearth/cmd/unearth-mcp            1.053s
+ok  github.com/unearth-tool/unearth/internal/httpclient        1.020s
+ok  github.com/unearth-tool/unearth/internal/ratelimit         1.029s
+ok  github.com/unearth-tool/unearth/pkg/cache                  10.862s
+ok  github.com/unearth-tool/unearth/pkg/cdn                    1.454s
+ok  github.com/unearth-tool/unearth/pkg/config                 1.074s
+ok  github.com/unearth-tool/unearth/pkg/rank                   1.015s
+ok  github.com/unearth-tool/unearth/pkg/techniques             4.595s
+ok  github.com/unearth-tool/unearth/pkg/unearth                1.556s
 ```
 
-### Changed files
+## Artifacts
 
-**`pkg/unearth/unearth.go`**
-- Added `ExcludeTechniques []string` field to `Options` with doc comment.
-- In `Discover`: built a `map[string]bool` exclusion set from
-  `opts.ExcludeTechniques`, warned on unknown names via `techniques.Get`, then
-  checked `excludeSet[t.Name()]` before the existing API-key pre-filter in the
-  technique selection loop.
+- Branch: `worker-unearth-lap-20260715T120000Z`
+- PR: https://github.com/bugsyhewitt/unearth/pull/44 (title: "v1.1.0 release")
+- Tag: `v1.1.0` pushed to origin
+- Test results: `test-output.txt`
 
-**`cmd/unearth/internal/cli/root.go`**
-- Added `excludeTechniques []string` to `rootFlags`.
-- Registered `--exclude-technique` with `cmd.Flags().StringSliceVar`.
-- Wired `f.excludeTechniques` into `opts.ExcludeTechniques` in `runRoot`.
+## What's in v1.1.0
 
-**`pkg/unearth/unearth_test.go`**
-- Added `"strings"` import.
-- Added 4 engine-level tests:
-  - `TestDiscover_ExcludeTechnique_SkipsNamedTechnique` — excluded technique
-    never runs, no candidates, not in Errors
-  - `TestDiscover_ExcludeTechnique_MultipleExclusions` — all names in the slice
-    are excluded; non-excluded technique still runs
-  - `TestDiscover_ExcludeTechnique_UnknownNameWarns` — unknown name becomes a
-    Warning, discovery proceeds normally
-  - `TestDiscover_ExcludeTechnique_EmptySliceIsNoop` — empty
-    ExcludeTechniques is identical to not setting the field
+**20 new discovery techniques** (total: 32 across all tiers)
+- Passive no-key: `split_dns`, `email_header`, `dns_txt_leak`, `otx_passivedns`
+- Passive keyed: `greynoise_asset`, `urlscan_asset`, `virustotal_passivedns`,
+  `chaos_asset`, `zoomeye_asset`, `fullhunt_asset`, `onyphe_cert`, `leakix_cert`,
+  `binaryedge_cert`, `criminalip_asset`, `netlas_cert`, `fofa_cert`, `shodan_cve`,
+  `censys_ipv6`
+- Active: `jarm_fingerprint`, `asn_sweep`
 
-**`cmd/unearth/internal/cli/cli_test.go`**
-- Added 3 CLI-level tests:
-  - `TestRoot_ExcludeTechnique_ThreadedIntoOpts` — comma-separated form is
-    parsed and delivered to opts.ExcludeTechniques
-  - `TestRoot_ExcludeTechnique_RepeatedFlag` — repeated flag collects all values
-  - `TestRoot_ExcludeTechnique_NotSetMeansEmptySlice` — absent flag leaves
-    ExcludeTechniques empty
+**10 new CDN providers** (total: 18)
+- StackPath/Highwinds, BunnyCDN, CDN77, Edgio, KeyCDN, Gcore, Google Cloud CDN,
+  Azure Front Door, Imperva (Incapsula), CacheFly, Vercel Edge Network, Netlify CDN
 
-**`README.md`**
-- Added `--exclude-technique` to the CLI reference flag table.
-- Added "Excluding techniques" section with usage examples.
+**CLI additions**
+- `--min-confidence` threshold filter
+- `--exclude-technique` per-run technique skip
+- `--pipeline-batch` for concurrent bulk-target runs
+- `-o sarif` SARIF 2.1.0 output format
+- `unearth calibrate` weight auto-calibration subcommand
 
-## Test results
+**MCP server additions**
+- `unearth_check_cdn`, `unearth_is_cdn_ip`, `unearth_list_techniques` (8 tools total)
 
-All 10 packages pass under `go test ./... -count=1 -race`. See `test-output.txt`.
+**Bug fixes**
+- Credential env var names now match documented names (unprefixed names work)
+- `favicon_hash` pre-filter corrected (was silently skipped even with keys set)
+- Config system registration back-filled for 7 post-v1.0 techniques
+- MurmurHash3 replaced with pointer-safe pure-Go implementation (race detector fix)
+- Imperva prefix overlap with StackPath removed; `TestNoDuplicatePrefixAcrossProviders` added
