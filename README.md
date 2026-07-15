@@ -1,5 +1,9 @@
 # unearth
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/bugsyhewitt/bugsyhewitt.github.io/main/public/cards/unearth.jpg" alt="unearth" width="680">
+</p>
+
 [![CI](https://github.com/bugsyhewitt/unearth/actions/workflows/ci.yml/badge.svg)](https://github.com/bugsyhewitt/unearth/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bugsyhewitt/unearth)](https://github.com/bugsyhewitt/unearth/releases/latest)
 [![Go version](https://img.shields.io/badge/go-1.23+-00ADD8)](https://go.dev)
