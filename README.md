@@ -92,6 +92,7 @@ The default (`passive`) never touches the target. `--active` and `--aggressive` 
 | `asn_sweep` | Active | No | 0.70 | BGPView ASN-range sweep — resolves target DNS to find its ASN, then probes live IPs across all ASN prefixes with host-header injection to find the real origin |
 | `jarm_fingerprint` | Active | No | 0.80 | JARM TLS active fingerprinting — sends 10 crafted ClientHellos to candidate IPs, hashes the handshake response into a 62-char fingerprint, and flags candidates whose JARM matches the target's (rejecting known CDN-edge signatures) |
 | `email_header` | Passive | No | 0.85 | Email `Received:`-header mining — parses an operator-supplied `.eml` file (`--email-file`) and surfaces non-CDN relay IPs from the mail hop chain |
+| `dns_txt_leak` | Passive | No | 0.55 | DNS TXT-record IP leak — queries TXT records at the apex and at common underscore-prefixed infrastructure names (`_origin`, `_direct`, `_backend`, `_monitor`, `_dmarc`, `_acme-challenge`, `default._domainkey`) and surfaces any non-CDN IP literal found inside them; complements `spf_mx` by covering non-SPF TXT records that SPF parsing never reaches |
 | `error_page` | Aggressive | No | 0.60 | Error-page leak detection on the live target |
 | `ipv6_probe` | Aggressive | No | 0.70 | IPv6 exposure probe — resolves AAAA and checks for CDN bypass |
 
@@ -326,6 +327,8 @@ The following CDNs are detected (IP-range matching + header and DNS signals):
 - **KeyCDN (proinity GmbH)** — published edge ranges (AS199653, proinity GmbH, Switzerland), `kxcdn.com`/`keycdn.com` CNAME signals, the `server: keycdn-engine` edge marker, the `x-edge-location` serving-POP header and `x-pull` pull-zone header, and an `x-cdn: keycdn` value
 - **Gcore (G-Core Labs)** — published edge ranges (AS199524, G-Core Labs S.A., Luxembourg), `gcdn.co`/`gcorelabs.com`/`gcore.com` CNAME signals, the `server: gcore` edge marker, the proprietary `x-gcore-*` header family (e.g. `x-gcore-pop` serving POP), and an `x-cdn: gcore` value
 - **CacheFly (CacheNetworks)** — published edge ranges (AS30081, CacheNetworks, LLC), `cachefly.net` CNAME signals, the `server: CacheFly` edge marker, the proprietary `x-cf1`/`x-cf2` request-tracking headers, and an `x-cdn: cachefly` value
+- **Vercel Edge Network** — published edge ranges (AS394354, Vercel Inc.), `.vercel.app`/`.vercel-dns.com`/`.now.sh` CNAME signals, the `x-vercel-id` request-tracking header, the `x-vercel-cache` (HIT/MISS/BYPASS) edge-cache header, the `server: Vercel` marker, and an `x-cdn: vercel` value
+- **Netlify CDN** — published edge ranges (AS137954, Netlify Inc.), `.netlify.app`/`.netlify.com`/`.netlify.net` CNAME signals, the `x-nf-request-id` proxied-response header, the `server: Netlify` marker, `x-cache` values mentioning `netlify`, and an `x-cdn: netlify` value
 
 Ranges are embedded at build time and can be refreshed via `pkg/cdn.Refresh()`.
 

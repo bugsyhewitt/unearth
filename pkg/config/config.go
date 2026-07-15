@@ -48,6 +48,16 @@ var knownTechniques = map[string]struct{}{
 	"banner_grab":           {},
 	"error_page":            {},
 	"ipv6_probe":            {},
+	// Techniques shipped after v1.0 — added to knownTechniques so users can
+	// override their weights in weights.yaml without triggering unknown-technique
+	// warnings, and so the calibrate subcommand can surface suggestions for them.
+	"split_dns":        {},
+	"email_header":     {},
+	"jarm_fingerprint": {},
+	"asn_sweep":        {},
+	"shodan_cve":       {},
+	"favicon_hash":     {},
+	"dns_txt_leak":     {},
 }
 
 // Weights maps technique name to its configured reliability weight in [0,1].

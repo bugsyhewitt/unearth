@@ -24,3 +24,10 @@ weights:
   banner_grab: 0.45
   error_page: 0.60
   ipv6_probe: 0.70
+  split_dns: 0.80
+  email_header: 0.85
+  jarm_fingerprint: 0.80
+  asn_sweep: 0.70
+  shodan_cve: 0.78
+  favicon_hash: 0.75
+  dns_txt_leak: 0.55
