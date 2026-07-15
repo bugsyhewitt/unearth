@@ -1,57 +1,80 @@
-# unearth — Phase 2 improvement: complete post-v1.0 technique configuration
+# unearth — Phase 2 improvement: fix credential test environment isolation gap
 
 ## What was done
 
-Seven techniques shipped after v1.0 were never added to the weight configuration system, and one of them had a concrete bug that prevented it from ever running.
+Five credential sets were absent from `allCredentialEnvVars` in
+`pkg/config/config_test.go`, and nine of the nineteen key-bearing backends
+were absent from the canonical-name test. Additionally, the README's technique
+count was out of date.
 
-### Bug fixed: `favicon_hash` silently dropped with valid keys
+### Root problem: `allCredentialEnvVars` missing five credential sets
 
-`favicon_hash` declares `RequiresAPIKey() == true` and accepts either `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT`. However, it was missing from the `hasKeyFor()` switch statement in `pkg/unearth/unearth.go`. The `default` case returns `false`, so the engine's pre-filter (`if t.RequiresAPIKey() && !hasKeyFor(...)`) was unconditionally skipping `favicon_hash` — even when the operator had `SHODAN_API_KEY` or `CENSYS_PLATFORM_PAT` set.
+`clearCredentialEnv` calls `t.Setenv(name, "")` for every variable in
+`allCredentialEnvVars` to prevent real-environment keys from leaking into
+tests that intend to start from a clean state. Five sets were missing:
 
-**Fix:** added `case "favicon_hash": return k.ShodanAPIKey != "" || k.CensysPlatformPAT != ""` to `hasKeyFor`.
+| Missing from `allCredentialEnvVars` | Env vars |
+|---|---|
+| ZoomEye | `ZOOMEYE_API_KEY`, `UNEARTH_ZOOMEYE_API_KEY` |
+| Chaos/PDCP | `PDCP_API_KEY`, `CHAOS_API_KEY`, `UNEARTH_PDCP_API_KEY` |
+| VirusTotal | `VIRUSTOTAL_API_KEY`, `VT_API_KEY`, `UNEARTH_VIRUSTOTAL_API_KEY` |
+| URLScan | `URLSCAN_API_KEY`, `UNEARTH_URLSCAN_API_KEY` |
+| GreyNoise | `GREYNOISE_API_KEY`, `UNEARTH_GREYNOISE_API_KEY` |
 
-### Config system gap patched for 7 post-v1.0 techniques
+Impact: any CI runner (or developer) with these API keys set in the shell
+environment would see non-empty values bleed into tests. For example,
+`TestLoadAPIKeys_EmptyEnv` intended to verify a zero-key state but
+`clearCredentialEnv` did not clear `GREYNOISE_API_KEY`, so
+`k.GreyNoiseKey` could be non-empty while the test passed. Tests that then
+asserted specific CredentialStatus map values could silently produce the
+wrong result.
 
-The `knownTechniques` map in `pkg/config/config.go` and both `default-weights.yaml` files (the embedded `pkg/config/default-weights.yaml` and the canonical `configs/default-weights.yaml`) were missing entries for:
+**Fix:** added all five missing sets (10 canonical vars + aliases) to
+`allCredentialEnvVars`, with inline comments explaining why each was absent.
 
-| Technique | Tier | Key required | Weight |
-|---|---|---|---|
-| `split_dns` | Passive | No | 0.80 |
-| `email_header` | Passive | No | 0.85 |
-| `jarm_fingerprint` | Active | No | 0.80 |
-| `asn_sweep` | Active | No | 0.70 |
-| `shodan_cve` | Passive | Yes (Shodan) | 0.78 |
-| `favicon_hash` | Active | Yes (Shodan or Censys) | 0.75 |
-| `dns_txt_leak` | Passive | No | 0.55 |
+### `TestLoadAPIKeys_CanonicalNames` only covered 10 of 19 key-bearing backends
 
-Without these entries, any user who tried to override one of these weights in a `weights.yaml` file received an "unknown technique" warning and the override was silently dropped. The `unearth calibrate --yaml` command also could not surface suggestions for them.
+The test verified that the unprefixed canonical env-var name (the one the
+README tells users to export) is read by `LoadAPIKeys`. It covered:
+Censys, Shodan, SecurityTrails, ViewDNS, FOFA, Netlas, CriminalIP. Missing:
+BinaryEdge, LeakIX, Onyphe, FullHunt, ZoomEye, Chaos, VirusTotal, URLScan,
+GreyNoise, OTX.
 
-All seven are now in `knownTechniques` and both YAML files.
+**Fix:** extended the test to assert all 20 struct fields map to their
+canonical env-var values; restructured as a slice of `{field, got, want}`
+entries so a new backend needs only one line to add.
 
-### `dns_txt_leak` documented in README
+### Missing `CredentialStatus` test coverage for nine backends
 
-The `dns_txt_leak` technique (`pkg/techniques/txtleak.go`) was fully implemented and running but not documented anywhere in the README. It is now listed in the techniques table with its tier, weight, and description.
+`TestCredentialStatus_CriminalIP` and `TestCredentialStatus_OTX` existed but
+no dedicated tests covered: BinaryEdge, LeakIX, Onyphe, FullHunt, ZoomEye,
+Chaos, VirusTotal, URLScan, GreyNoise.
 
-### Vercel and Netlify CDN providers documented in README
+**Fix:** added three new tests:
 
-`buildVercel()` and `buildNetlify()` were fully implemented in `pkg/cdn/cdn.go` with embedded range data and header/DNS detection signals, but were absent from the README's CDN coverage section. Both are now documented.
+- `TestCredentialStatus_NewBackends` — table-driven, one sub-test per
+  backend; each sub-test verifies false with no key, true with canonical
+  name, and true with the UNEARTH_-prefixed legacy alias.
+- `TestCredentialStatus_VTAliases` — verifies the `VT_API_KEY` alias for
+  VirusTotal (three accepted names).
+- `TestCredentialStatus_ChaosAliases` — verifies the `CHAOS_API_KEY` alias
+  for Chaos/PDCP (three accepted names).
 
-### Regression guards added (3 new tests)
+### README technique count corrected
 
-- `TestKnownTechniquesMatchesRegistry` (pkg/config) — iterates `techniques.All()` and fails if any registered technique is absent from `knownTechniques`; prevents a recurrence of the 7-technique gap.
-- `TestHasKeyFor_FaviconHash` (pkg/unearth) — verifies each of the two sufficient keys for `favicon_hash` individually and that neither key present returns false.
-- `TestHasKeyFor_AllKeyRequiringTechniquesCovered` (pkg/unearth) — iterates `techniques.All()`, finds every technique with `RequiresAPIKey()==true`, and confirms `hasKeyFor` returns true with a fully-populated `APIKeys`; prevents the `favicon_hash` class of bug from recurring.
+The introduction said "seventeen recon techniques" but the tool now ships 32.
+Updated to "thirty-two" and expanded the brief technique list to include
+JARM fingerprinting and ASN-range sweeps (which were absent from the summary
+even though they shipped months ago).
 
 ## Files changed
 
-- `pkg/unearth/unearth.go` — add `favicon_hash` case to `hasKeyFor`
-- `pkg/config/config.go` — add 7 techniques to `knownTechniques`
-- `pkg/config/default-weights.yaml` — add 7 technique weights
-- `configs/default-weights.yaml` — add same 7 technique weights (byte-identical copy)
-- `pkg/config/config_test.go` — add `TestKnownTechniquesMatchesRegistry`
-- `pkg/unearth/unearth_test.go` — add `TestHasKeyFor_FaviconHash` and `TestHasKeyFor_AllKeyRequiringTechniquesCovered`
-- `README.md` — add `dns_txt_leak` to techniques table; add Vercel and Netlify to CDN coverage section
-- `CHANGELOG.md` — document all changes
+- `pkg/config/config_test.go` — fix `allCredentialEnvVars` (5 missing sets);
+  extend `TestLoadAPIKeys_CanonicalNames` to all 20 fields; add
+  `TestCredentialStatus_NewBackends`, `TestCredentialStatus_VTAliases`,
+  `TestCredentialStatus_ChaosAliases`
+- `README.md` — update technique count from "seventeen" to "thirty-two";
+  expand technique list in introduction
 
 ## Test results
 
