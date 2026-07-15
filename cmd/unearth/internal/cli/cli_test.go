@@ -888,6 +888,67 @@ func TestRoot_MinConfidence_AllFilteredIsEmptyOutput(t *testing.T) {
 	}
 }
 
+// --- --exclude-technique tests -------------------------------------------
+
+// TestRoot_ExcludeTechnique_ThreadedIntoOpts verifies that --exclude-technique
+// (both comma-separated and repeated) is correctly wired into
+// opts.ExcludeTechniques and delivered to the runner.
+func TestRoot_ExcludeTechnique_ThreadedIntoOpts(t *testing.T) {
+	var seen unearth.Options
+	withRunner(t, func(_ context.Context, _ string, opts unearth.Options) (*unearth.Result, error) {
+		seen = opts
+		return fakeResult("example.test"), nil
+	})
+	code, _, _ := captured(t, "--exclude-technique", "crtsh,shodan_cert", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	want := []string{"crtsh", "shodan_cert"}
+	if len(seen.ExcludeTechniques) != len(want) {
+		t.Fatalf("ExcludeTechniques: want %v, got %v", want, seen.ExcludeTechniques)
+	}
+	for i, w := range want {
+		if seen.ExcludeTechniques[i] != w {
+			t.Errorf("ExcludeTechniques[%d]: want %q, got %q", i, w, seen.ExcludeTechniques[i])
+		}
+	}
+}
+
+// TestRoot_ExcludeTechnique_RepeatedFlag verifies that --exclude-technique may
+// be supplied more than once and all values are collected.
+func TestRoot_ExcludeTechnique_RepeatedFlag(t *testing.T) {
+	var seen unearth.Options
+	withRunner(t, func(_ context.Context, _ string, opts unearth.Options) (*unearth.Result, error) {
+		seen = opts
+		return fakeResult("example.test"), nil
+	})
+	code, _, _ := captured(t, "--exclude-technique", "crtsh", "--exclude-technique", "spf_mx", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if len(seen.ExcludeTechniques) != 2 {
+		t.Fatalf("want 2 exclusions, got %v", seen.ExcludeTechniques)
+	}
+}
+
+// TestRoot_ExcludeTechnique_NotSetMeansEmptySlice verifies that when the flag
+// is not supplied, ExcludeTechniques is nil or empty (never non-nil with
+// unexpected content).
+func TestRoot_ExcludeTechnique_NotSetMeansEmptySlice(t *testing.T) {
+	var seen unearth.Options
+	withRunner(t, func(_ context.Context, _ string, opts unearth.Options) (*unearth.Result, error) {
+		seen = opts
+		return fakeResult("example.test"), nil
+	})
+	code, _, _ := captured(t, "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	if len(seen.ExcludeTechniques) != 0 {
+		t.Errorf("without --exclude-technique, ExcludeTechniques must be empty, got %v", seen.ExcludeTechniques)
+	}
+}
+
 // --- SARIF level tests -----------------------------------------------
 
 // TestSarifLevel_Boundaries verifies the score→level mapping at boundary values.

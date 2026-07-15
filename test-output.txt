@@ -1,11 +1,11 @@
 ?   	github.com/unearth-tool/unearth/cmd/unearth	[no test files]
-ok  	github.com/unearth-tool/unearth/cmd/unearth/internal/cli	1.294s
-ok  	github.com/unearth-tool/unearth/cmd/unearth-mcp	1.064s
-ok  	github.com/unearth-tool/unearth/internal/httpclient	1.026s
-ok  	github.com/unearth-tool/unearth/internal/ratelimit	1.036s
-ok  	github.com/unearth-tool/unearth/pkg/cache	12.777s
-ok  	github.com/unearth-tool/unearth/pkg/cdn	1.441s
-ok  	github.com/unearth-tool/unearth/pkg/config	1.086s
-ok  	github.com/unearth-tool/unearth/pkg/rank	1.022s
-ok  	github.com/unearth-tool/unearth/pkg/techniques	4.962s
-ok  	github.com/unearth-tool/unearth/pkg/unearth	1.586s
+ok  	github.com/unearth-tool/unearth/cmd/unearth/internal/cli	1.275s
+ok  	github.com/unearth-tool/unearth/cmd/unearth-mcp	1.062s
+ok  	github.com/unearth-tool/unearth/internal/httpclient	1.025s
+ok  	github.com/unearth-tool/unearth/internal/ratelimit	1.031s
+ok  	github.com/unearth-tool/unearth/pkg/cache	11.389s
+ok  	github.com/unearth-tool/unearth/pkg/cdn	1.414s
+ok  	github.com/unearth-tool/unearth/pkg/config	1.070s
+ok  	github.com/unearth-tool/unearth/pkg/rank	1.016s
+ok  	github.com/unearth-tool/unearth/pkg/techniques	4.809s
+ok  	github.com/unearth-tool/unearth/pkg/unearth	1.595s

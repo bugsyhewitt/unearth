@@ -1,74 +1,85 @@
-# unearth — Phase 2 improvement: --min-confidence confidence-threshold filter
+# unearth — Phase 2 improvement: --exclude-technique flag
 
 ## What was done
 
-Added `--min-confidence <float>` to the `unearth` CLI. The flag hides candidates
-whose noisy-OR score falls below the supplied threshold, across all four output
-formats (jsonl, json, table, sarif). With `--min-confidence 0` (the default),
-all candidates are shown and behaviour is unchanged.
+Added `--exclude-technique <name>[,<name>...]` to the `unearth` CLI and the
+`unearth.Options` library API. The flag lets operators skip one or more
+techniques by name for a single run, without changing any global configuration.
 
 ## The problem
 
-`unearth` can surface dozens of candidates per target when many passive techniques
-agree on several IPs. Operators reviewing output in a pipeline (e.g. piping JSONL
-into `httpx` or uploading SARIF to GitHub Code Scanning) often only care about
-high-confidence hits and want to filter the noise at the source rather than
-post-processing with `jq '.score >= 0.8'`.
+`unearth` runs all tier-appropriate techniques for every target. Operators
+sometimes need to suppress specific techniques:
+
+- A backend is rate-limiting today (`crtsh`, `shodan_cert`)
+- A technique is irrelevant for the target (e.g. no MX record, `spf_mx` will
+  always miss)
+- Troubleshooting: narrow down which technique is producing noisy results
+- Reproducing a result without a specific technique to isolate signal
+
+Previously the only options were tier flags (`--active`, `--passive`) or
+weights YAML to zero out a technique's weight — neither is ergonomic for
+ad-hoc exclusions and the weights file persists across runs.
 
 ## Implementation
 
-### New flag
+### New library field
 
-`--min-confidence float` — range `[0.0, 1.0]`, default `0` (show all).
-Validated at parse time; values outside the range return a usage error.
+`unearth.Options.ExcludeTechniques []string` — names to skip. Empty means no
+exclusions (the default; existing callers are unaffected). Unknown names produce
+a `Warnings` entry rather than an error, so a mistyped name is visible but never
+breaks a run.
+
+### New CLI flag
+
+`--exclude-technique string` — registered as a `StringSlice` flag, which
+accepts both comma-separated values and repeated flags:
+
+```sh
+# Comma-separated
+unearth --exclude-technique crtsh,shodan_cert example.com
+
+# Repeated flag (same result)
+unearth --exclude-technique crtsh --exclude-technique spf_mx example.com
+```
 
 ### Changed files
 
+**`pkg/unearth/unearth.go`**
+- Added `ExcludeTechniques []string` field to `Options` with doc comment.
+- In `Discover`: built a `map[string]bool` exclusion set from
+  `opts.ExcludeTechniques`, warned on unknown names via `techniques.Get`, then
+  checked `excludeSet[t.Name()]` before the existing API-key pre-filter in the
+  technique selection loop.
+
 **`cmd/unearth/internal/cli/root.go`**
-- Added `minConfidence float64` to `rootFlags` struct.
-- Registered `--min-confidence` flag with cobra.
-- Validation: `if f.minConfidence < 0 || f.minConfidence > 1 { return errUsage(...) }`.
-- Passes `f.minConfidence` to `newSink`.
+- Added `excludeTechniques []string` to `rootFlags`.
+- Registered `--exclude-technique` with `cmd.Flags().StringSliceVar`.
+- Wired `f.excludeTechniques` into `opts.ExcludeTechniques` in `runRoot`.
 
-**`cmd/unearth/internal/cli/output.go`**
-- Added `minConfidence float64` field to `jsonlSink`, `jsonSink`, `tableSink`,
-  `sarifSink`.
-- Updated `newSink` signature to accept `minConfidence float64` and thread it
-  into each sink struct.
-- Added `filterByConfidence(candidates []unearth.ScoredIP, minConfidence float64)
-  []unearth.ScoredIP` helper. The filter is a no-op when `minConfidence <= 0`.
-  The input slice is never modified (a new slice is allocated).
-- Applied the filter before the existing `capN(top, ...)` cap in every
-  sink's `write` / `buildResults`:
-  - `jsonlSink.write`: `candidates := filterByConfidence(res.Candidates, s.minConfidence)`
-  - `jsonSink.flush`: filter each result's candidates before truncating
-  - `tableSink.write`: filter before the tabwriter loop
-  - `sarifSink.buildResults`: filter before the top cap
-
-**`cmd/unearth/internal/cli/extra_test.go`**
-- Updated existing `TestNewSink_InvalidFormatRejected` call to use the new
-  4-argument `newSink` signature.
-- Added `TestFilterByConfidence` — unit test for the helper directly,
-  covering: zero threshold (no-op), `>= threshold` semantics (inclusive),
-  and that the input slice is not mutated.
+**`pkg/unearth/unearth_test.go`**
+- Added `"strings"` import.
+- Added 4 engine-level tests:
+  - `TestDiscover_ExcludeTechnique_SkipsNamedTechnique` — excluded technique
+    never runs, no candidates, not in Errors
+  - `TestDiscover_ExcludeTechnique_MultipleExclusions` — all names in the slice
+    are excluded; non-excluded technique still runs
+  - `TestDiscover_ExcludeTechnique_UnknownNameWarns` — unknown name becomes a
+    Warning, discovery proceeds normally
+  - `TestDiscover_ExcludeTechnique_EmptySliceIsNoop` — empty
+    ExcludeTechniques is identical to not setting the field
 
 **`cmd/unearth/internal/cli/cli_test.go`**
-- Added `fakeResultWithScores` helper that builds a result with explicit scores.
-- Added 8 new tests:
-  - `TestRoot_MinConfidence_InvalidBelowZero`
-  - `TestRoot_MinConfidence_InvalidAboveOne`
-  - `TestRoot_MinConfidence_ZeroShowsAll`
-  - `TestRoot_MinConfidence_FiltersJSONL`
-  - `TestRoot_MinConfidence_ThresholdIsInclusive`
-  - `TestRoot_MinConfidence_FiltersJSON`
-  - `TestRoot_MinConfidence_FiltersSARIF`
-  - `TestRoot_MinConfidence_FiltersTable`
-  - `TestRoot_MinConfidence_AllFilteredIsEmptyOutput`
+- Added 3 CLI-level tests:
+  - `TestRoot_ExcludeTechnique_ThreadedIntoOpts` — comma-separated form is
+    parsed and delivered to opts.ExcludeTechniques
+  - `TestRoot_ExcludeTechnique_RepeatedFlag` — repeated flag collects all values
+  - `TestRoot_ExcludeTechnique_NotSetMeansEmptySlice` — absent flag leaves
+    ExcludeTechniques empty
 
 **`README.md`**
-- Updated CLI reference to add `--min-confidence` with description.
-- Corrected `--top` default (50, not 0) and `--concurrency` name.
-- Added a quick-start example: `unearth --min-confidence 0.8 example.com`.
+- Added `--exclude-technique` to the CLI reference flag table.
+- Added "Excluding techniques" section with usage examples.
 
 ## Test results
 

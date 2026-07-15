@@ -51,6 +51,12 @@ type Options struct {
 	// CVEID optionally scopes the shodan_cve technique to a single CVE
 	// identifier (e.g. "CVE-2024-1709"). Empty string skips that technique.
 	CVEID string
+	// ExcludeTechniques is an optional list of technique names to skip for
+	// this run. Names must match the lowercase technique identifier returned by
+	// Technique.Name() (e.g. "crtsh", "shodan_cert"). Unknown names are
+	// recorded as Warnings but do not prevent the run. An empty slice runs all
+	// techniques selected by Tier as normal.
+	ExcludeTechniques []string
 }
 
 // DefaultOptions returns Options with conservative defaults: passive tier only,
@@ -189,8 +195,27 @@ func Discover(ctx context.Context, target string, opts Options) (*Result, error)
 	// techniques.CandidateConsumer and opt in) run second with the
 	// pooled candidate IPs from phase 1 in RunOptions.SeedIPs.
 	selected := techniqueSelector(opts.Tier)
+
+	// Build the exclusion set and warn on any unknown names so the operator
+	// knows immediately if they mistyped a technique name.
+	excludeSet := make(map[string]bool, len(opts.ExcludeTechniques))
+	for _, name := range opts.ExcludeTechniques {
+		excludeSet[name] = true
+	}
+	if len(excludeSet) > 0 {
+		for name := range excludeSet {
+			if _, ok := techniques.Get(name); !ok {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("exclude: unknown technique %q (no-op)", name))
+			}
+		}
+	}
+
 	var phase1, phase2 []techniques.Technique
 	for _, t := range selected {
+		if excludeSet[t.Name()] {
+			continue
+		}
 		if t.RequiresAPIKey() && !hasKeyFor(t.Name(), opts.APIKeys) {
 			result.Errors = append(result.Errors, TechniqueErr{
 				Technique: t.Name(),

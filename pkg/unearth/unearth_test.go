@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -320,6 +321,115 @@ func TestDiscover_ContextAlreadyCancelled(t *testing.T) {
 	_, err := Discover(ctx, "x", testOpts())
 	if err == nil {
 		t.Error("expected engine error on pre-cancelled context")
+	}
+}
+
+// TestDiscover_ExcludeTechnique_SkipsNamedTechnique verifies that a technique
+// named in opts.ExcludeTechniques is never run and never appears in Errors.
+func TestDiscover_ExcludeTechnique_SkipsNamedTechnique(t *testing.T) {
+	excluded := &fakeTech{name: "skip_me", weight: 0.9,
+		candidates: []techniques.Candidate{{IP: "203.0.113.99", Evidence: "should not appear"}}}
+	kept := &fakeTech{name: "keep_me", weight: 0.7,
+		candidates: []techniques.Candidate{{IP: "203.0.113.1", Evidence: "kept"}}}
+	withSelector(t, excluded, kept)
+
+	opts := testOpts()
+	opts.ExcludeTechniques = []string{"skip_me"}
+	res, err := Discover(context.Background(), "example.test", opts)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	// skip_me must not have run
+	if excluded.ranOnce.Load() != 0 {
+		t.Error("excluded technique was run but should have been skipped")
+	}
+	// keep_me must still produce its candidate
+	if len(res.Candidates) != 1 || res.Candidates[0].IP != "203.0.113.1" {
+		t.Errorf("kept technique candidates: want [203.0.113.1], got %+v", res.Candidates)
+	}
+	// skip_me must not appear in Errors either
+	for _, e := range res.Errors {
+		if e.Technique == "skip_me" {
+			t.Errorf("excluded technique appeared in Errors: %+v", e)
+		}
+	}
+}
+
+// TestDiscover_ExcludeTechnique_MultipleExclusions verifies that all names in
+// ExcludeTechniques are skipped, not just the first.
+func TestDiscover_ExcludeTechnique_MultipleExclusions(t *testing.T) {
+	a := &fakeTech{name: "a", weight: 0.5, candidates: []techniques.Candidate{{IP: "1.1.1.1"}}}
+	b := &fakeTech{name: "b", weight: 0.5, candidates: []techniques.Candidate{{IP: "2.2.2.2"}}}
+	c := &fakeTech{name: "c", weight: 0.5, candidates: []techniques.Candidate{{IP: "3.3.3.3"}}}
+	withSelector(t, a, b, c)
+
+	opts := testOpts()
+	opts.ExcludeTechniques = []string{"a", "c"}
+	res, err := Discover(context.Background(), "x", opts)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if a.ranOnce.Load() != 0 {
+		t.Error("technique 'a' should have been excluded")
+	}
+	if c.ranOnce.Load() != 0 {
+		t.Error("technique 'c' should have been excluded")
+	}
+	if b.ranOnce.Load() != 1 {
+		t.Error("technique 'b' should still run")
+	}
+	if len(res.Candidates) != 1 || res.Candidates[0].IP != "2.2.2.2" {
+		t.Errorf("candidates: want [2.2.2.2], got %+v", res.Candidates)
+	}
+}
+
+// TestDiscover_ExcludeTechnique_UnknownNameWarns verifies that an unknown
+// technique name in ExcludeTechniques results in a Warnings entry (not an
+// error) and does not prevent normal discovery.
+func TestDiscover_ExcludeTechnique_UnknownNameWarns(t *testing.T) {
+	known := &fakeTech{name: "known", weight: 0.6,
+		candidates: []techniques.Candidate{{IP: "203.0.113.1"}}}
+	withSelector(t, known)
+
+	opts := testOpts()
+	opts.ExcludeTechniques = []string{"nonexistent_technique"}
+	res, err := Discover(context.Background(), "x", opts)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	// The unknown name should produce a warning.
+	var foundWarn bool
+	for _, w := range res.Warnings {
+		if strings.Contains(w, "nonexistent_technique") {
+			foundWarn = true
+		}
+	}
+	if !foundWarn {
+		t.Errorf("expected warning for unknown technique, got warnings: %v", res.Warnings)
+	}
+	// Discovery still runs normally.
+	if len(res.Candidates) != 1 {
+		t.Errorf("candidates: want 1, got %d", len(res.Candidates))
+	}
+}
+
+// TestDiscover_ExcludeTechnique_EmptySliceIsNoop verifies that an empty
+// ExcludeTechniques slice is equivalent to not setting the field.
+func TestDiscover_ExcludeTechnique_EmptySliceIsNoop(t *testing.T) {
+	tech := &fakeTech{name: "t", weight: 0.5, candidates: []techniques.Candidate{{IP: "203.0.113.1"}}}
+	withSelector(t, tech)
+
+	opts := testOpts()
+	opts.ExcludeTechniques = []string{} // explicitly empty
+	res, err := Discover(context.Background(), "x", opts)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if tech.ranOnce.Load() != 1 {
+		t.Error("technique should run when ExcludeTechniques is empty")
+	}
+	if len(res.Candidates) != 1 {
+		t.Errorf("candidates: want 1, got %d", len(res.Candidates))
 	}
 }
 

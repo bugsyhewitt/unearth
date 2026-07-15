@@ -39,8 +39,9 @@ type rootFlags struct {
 	weights       string
 	emailFile     string
 	cveID         string
-	pipelineBatch int
-	minConfidence float64
+	pipelineBatch      int
+	minConfidence      float64
+	excludeTechniques  []string
 }
 
 // runner is the indirection through which the root command invokes
@@ -97,6 +98,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&f.cveID, "cve", "", "CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE")
 	cmd.Flags().IntVar(&f.pipelineBatch, "pipeline-batch", 1, "Number of targets to discover concurrently (1 = sequential; output stays in input order)")
 	cmd.Flags().Float64Var(&f.minConfidence, "min-confidence", 0, "Hide candidates with score below this threshold (0 = show all, range 0.0–1.0)")
+	cmd.Flags().StringSliceVar(&f.excludeTechniques, "exclude-technique", nil, "Comma-separated list of technique names to skip (e.g. crtsh,shodan_cert); may be repeated")
 
 	cmd.AddCommand(newVersionCmd(stdout))
 	cmd.AddCommand(newCacheCmd(stdin, stdout, stderr))
@@ -147,6 +149,7 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		EmailFile:           f.emailFile,
 		CVEID:               f.cveID,
 		APIKeys:             config.LoadAPIKeys(),
+		ExcludeTechniques:   f.excludeTechniques,
 	}
 
 	if f.verbose {
