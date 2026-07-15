@@ -47,7 +47,7 @@ type jarmTechnique struct{}
 func (jarmTechnique) Name() string             { return "jarm_fingerprint" }
 func (jarmTechnique) Tier() Tier               { return TierActive }
 func (jarmTechnique) RequiresAPIKey() bool     { return false }
-func (jarmTechnique) DefaultWeight() float64   { return 0.70 }
+func (jarmTechnique) DefaultWeight() float64   { return 0.80 }
 func (jarmTechnique) ConsumesCandidates() bool { return true }
 
 const (
