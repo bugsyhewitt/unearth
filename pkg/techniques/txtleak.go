@@ -93,7 +93,7 @@ func (txtLeakTechnique) Run(ctx context.Context, target string, opts RunOptions)
 	var out []Candidate
 	add := func(a netip.Addr, name, txt string) {
 		a = a.Unmap()
-		if !publicOriginAddr(a) || seen[a] || cdn.IsCDNIP(a) {
+		if !isPublicOriginAddr(a) || seen[a] || cdn.IsCDNIP(a) {
 			return
 		}
 		seen[a] = true
@@ -149,22 +149,3 @@ func (txtLeakTechnique) Run(ctx context.Context, target string, opts RunOptions)
 	return out, nil
 }
 
-// publicOriginAddr reports whether a is a globally-routable unicast address
-// worth surfacing as an origin candidate. It rejects the unspecified address,
-// loopback, link-local (v4 and v6), multicast, RFC1918 / unique-local private
-// space, and IPv4 broadcast — the same non-origin classes the email_header and
-// spf_mx techniques exclude.
-func publicOriginAddr(a netip.Addr) bool {
-	if !a.IsValid() {
-		return false
-	}
-	if a.IsUnspecified() || a.IsLoopback() || a.IsMulticast() ||
-		a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() ||
-		a.IsPrivate() || a.IsInterfaceLocalMulticast() {
-		return false
-	}
-	if a.Is4() && a == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
-		return false
-	}
-	return true
-}

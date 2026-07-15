@@ -19,47 +19,6 @@ import (
 //go:embed default-weights.yaml
 var defaultWeightsYAML []byte
 
-// knownTechniques is the set of technique names recognized by v1.0. A user
-// weights file that mentions a name outside this set produces a warning,
-// not an error.
-var knownTechniques = map[string]struct{}{
-	"crtsh":                 {},
-	"ct_fingerprint":        {},
-	"dns_history":           {},
-	"spf_mx":                {},
-	"subdomain_enum":        {},
-	"censys_cert":           {},
-	"censys_ipv6":           {},
-	"shodan_cert":           {},
-	"fofa_cert":             {},
-	"netlas_cert":           {},
-	"criminalip_asset":      {},
-	"binaryedge_cert":       {},
-	"leakix_cert":           {},
-	"onyphe_cert":           {},
-	"fullhunt_asset":        {},
-	"zoomeye_asset":         {},
-	"chaos_asset":           {},
-	"virustotal_passivedns": {},
-	"urlscan_asset":         {},
-	"otx_passivedns":        {},
-	"greynoise_asset":       {},
-	"host_header":           {},
-	"banner_grab":           {},
-	"error_page":            {},
-	"ipv6_probe":            {},
-	// Techniques shipped after v1.0 — added to knownTechniques so users can
-	// override their weights in weights.yaml without triggering unknown-technique
-	// warnings, and so the calibrate subcommand can surface suggestions for them.
-	"split_dns":        {},
-	"email_header":     {},
-	"jarm_fingerprint": {},
-	"asn_sweep":        {},
-	"shodan_cve":       {},
-	"favicon_hash":     {},
-	"dns_txt_leak":     {},
-}
-
 // Weights maps technique name to its configured reliability weight in [0,1].
 // The zero value is usable: it simply has no overrides and Weight always
 // returns ok=false.
@@ -143,7 +102,7 @@ func LoadWeights(explicitPath string) (Weights, []string, error) {
 				if v < 0 || v > 1 {
 					return Weights{}, nil, fmt.Errorf("config: weight for %q in %s is out of range [0,1]: %g", name, path, v)
 				}
-				if _, ok := knownTechniques[name]; !ok {
+				if _, ok := techniques.Get(name); !ok {
 					warnings = append(warnings, fmt.Sprintf("unknown technique %q in %s (ignored)", name, path))
 					continue
 				}

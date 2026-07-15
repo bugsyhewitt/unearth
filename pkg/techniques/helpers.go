@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"time"
 )
 
@@ -38,6 +39,28 @@ func cacheWrite(c CacheStore, opts RunOptions, key string, payload []byte, ttl t
 		return
 	}
 	_ = c.Set(key, payload, ttl)
+}
+
+// isPublicOriginAddr reports whether a is a globally-routable unicast address
+// worth surfacing as an origin candidate. It rejects the unspecified address,
+// loopback, link-local (v4 and v6), multicast, RFC1918 / unique-local private
+// space, interface-local multicast, and the IPv4 broadcast address.
+//
+// This is the canonical package-level check; individual techniques should call
+// this instead of rolling their own addr-filtering logic.
+func isPublicOriginAddr(a netip.Addr) bool {
+	if !a.IsValid() {
+		return false
+	}
+	if a.IsUnspecified() || a.IsLoopback() || a.IsMulticast() ||
+		a.IsLinkLocalUnicast() || a.IsLinkLocalMulticast() ||
+		a.IsPrivate() || a.IsInterfaceLocalMulticast() {
+		return false
+	}
+	if a.Is4() && a == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
+		return false
+	}
+	return true
 }
 
 // httpGetJSON is the common pattern used by API-backed techniques: rate-
