@@ -16,6 +16,10 @@ linters:
       - linters:
           - misspell
         text: "passivedns"
+      - path: pkg/config/config_test\.go
+        linters:
+          - staticcheck
+        text: "SA1019"
 
 formatters:
   enable:

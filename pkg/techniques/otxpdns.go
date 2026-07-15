@@ -75,15 +75,16 @@ func init() { Register(otxPassiveDNSTechnique{}) }
 // indicator) typically returns a 4xx status with a JSON envelope carrying
 // `detail` / `error` / `message` fields.
 const (
-	otxPassiveDNSURL  = "https://otx.alienvault.com/api/v1/indicators/domain/%s/passive_dns"
-	otxPassiveDNSTTL  = 1 * time.Hour
+	otxPassiveDNSURL   = "https://otx.alienvault.com/api/v1/indicators/domain/%s/passive_dns"
+	otxPassiveDNSTTL   = 1 * time.Hour
 	otxPassiveDNSTName = "otx_passivedns"
 )
 
 type otxPassiveDNSTechnique struct{}
 
-func (otxPassiveDNSTechnique) Name() string         { return otxPassiveDNSTName }
-func (otxPassiveDNSTechnique) Tier() Tier           { return TierPassive }
+func (otxPassiveDNSTechnique) Name() string { return otxPassiveDNSTName }
+func (otxPassiveDNSTechnique) Tier() Tier   { return TierPassive }
+
 // RequiresAPIKey reports false: the OTX passive-DNS endpoint is publicly
 // accessible without credentials. A key is honored when present (lifting the
 // per-IP rate limit) but never required.

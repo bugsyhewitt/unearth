@@ -148,4 +148,3 @@ func (txtLeakTechnique) Run(ctx context.Context, target string, opts RunOptions)
 	cacheWrite(opts.Cache, opts, key, mustMarshal(txtLeakCache{Items: out}), txtLeakTTL)
 	return out, nil
 }
-

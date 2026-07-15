@@ -430,8 +430,8 @@ func TestCredentialStatus_OTX(t *testing.T) {
 // into every test that called clearCredentialEnv.
 func TestCredentialStatus_NewBackends(t *testing.T) {
 	tests := []struct {
-		name    string // CredentialStatus map key
-		envVar  string // canonical env-var name to set
+		name      string // CredentialStatus map key
+		envVar    string // canonical env-var name to set
 		legacyVar string // UNEARTH_-prefixed alias (empty if none)
 	}{
 		{"binaryedge", "BINARYEDGE_API_KEY", "UNEARTH_BINARYEDGE_API_KEY"},
