@@ -183,7 +183,19 @@ candidate list for any Imperva-fronted target.
 
 ---
 
-## P2 — FOFA / Netlas / Criminal IP technique integration
+## P2 — FOFA / Netlas / Criminal IP technique integration — ✅ IMPLEMENTED (Phase 2, 2026-07-15)
+
+> Shipped in `pkg/techniques/fofacert.go` (`fofa_cert`, passive, weight 0.80,
+> requires `FOFA_EMAIL` + `FOFA_KEY`), `pkg/techniques/netlascert.go`
+> (`netlas_cert`, passive, weight 0.75, requires `NETLAS_API_KEY`), and
+> `pkg/techniques/cipasset.go` (`criminalip_asset`, passive, weight 0.70,
+> requires `CRIMINALIP_API_KEY`). All three pivot the target's TLS leaf-cert
+> SHA-256 fingerprint against their respective search corpora, emit non-CDN
+> hits as origin candidates, skip gracefully when the API key is absent, and
+> classify quota/tier errors as `ErrTierInsufficient` (a clean skip, not a
+> failure). API keys documented in the README API keys section. All three are
+> wired into the `unearth_cert_fingerprint` MCP tool automatically when their
+> respective env vars are set.
 
 **What:** Add optional passive technique backends for FOFA and/or Netlas,
 paralleling the existing Censys and Shodan integrations. Both support
@@ -361,7 +373,28 @@ internal IP addresses and mail relay hostnames that bypass CDN fronting.
 
 ---
 
-## P3 — FOFA / ZoomEye MCP tool expansion
+## P3 — FOFA / ZoomEye MCP tool expansion — ✅ IMPLEMENTED (Phase 2, 2026-07-15)
+
+> FOFA and Netlas are already available in the `unearth_cert_fingerprint` MCP
+> tool (added automatically when `FOFA_EMAIL`+`FOFA_KEY` or `NETLAS_API_KEY`
+> are set in the server environment). Three additional utility tools were added
+> to `cmd/unearth-mcp/main.go`:
+>
+> - `unearth_check_cdn` — CDN fingerprinting for a hostname (DNS CNAME/NS
+>   signals, A/AAAA IP-range lookup, one HTTP GET to inspect response headers);
+>   returns `{target, cdn, signals, warning?}`. No extra API key. Useful for an
+>   AI agent to decide whether origin discovery is needed and to verify a final
+>   candidate is not still CDN-fronted.
+> - `unearth_is_cdn_ip` — classify a batch of IP addresses against the embedded
+>   CDN IP-range tables; returns per-IP `{ip, is_cdn, provider}` with no
+>   network requests. Useful for filtering discovery results.
+> - `unearth_list_techniques` — enumerate all registered techniques with their
+>   `{name, tier, requires_api_key, default_weight}` metadata. Useful for an
+>   AI agent to understand available capabilities before selecting a discovery
+>   tier.
+>
+> 24 unit tests added to `cmd/unearth-mcp/main_test.go`; all pass. The MCP
+> server now exposes eight tools total.
 
 **What:** Expose FOFA and Netlas queries as additional MCP tools in
 `unearth-mcp`, alongside the existing `discover`, `check_cdn`, `is_cdn_ip`,
@@ -374,7 +407,16 @@ query FOFA or Netlas for a target without running a full discovery sweep.
 
 ---
 
-## P3 — Bulk target parallelism improvements (pipeline mode)
+## P3 — Bulk target parallelism improvements (pipeline mode) — ✅ IMPLEMENTED (Phase 2)
+
+> Shipped in `cmd/unearth/internal/cli/root.go`. The `--pipeline-batch <n>`
+> flag lifts per-target concurrency to the target level: up to `n` targets are
+> discovered simultaneously. Results are emitted in input order regardless of
+> completion order. `--pipeline-batch 1` (the default) preserves
+> strictly-sequential behavior. Documented in README "Bulk targets and pipeline
+> batching" section and tested in `cli_test.go`
+> (`TestRoot_PipelineBatchInvalid`, `TestRoot_PipelineBatchOrderedOutput`,
+> `TestRoot_PipelineBatchRunsAllTargets`, `TestRoot_PipelineBatchClampsToTargetCount`).
 
 **What:** When reading from `-l -` (stdin pipeline mode), process targets in a
 sliding window rather than one-at-a-time. Allow `--pipeline-batch <n>` to

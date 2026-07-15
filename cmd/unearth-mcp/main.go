@@ -3,13 +3,16 @@
 //
 // The server reads JSON-RPC requests from stdin and writes responses to
 // stdout. All diagnostics are written to stderr. An AI agent that launches
-// this process and wires up the stdio streams gets access to five tools:
+// this process and wires up the stdio streams gets access to eight tools:
 //
 //   - unearth_discover          — full ranked pipeline
-//   - unearth_cert_fingerprint  — keyless cert-pivot technique
+//   - unearth_cert_fingerprint  — keyless cert-pivot technique (includes fofa_cert, netlas_cert, criminalip_asset when keys are set)
 //   - unearth_dns_history       — DNS history lookup
 //   - unearth_subdomain_enum    — subdomain enumeration
 //   - unearth_host_header_probe — host-header validation against caller-supplied IPs
+//   - unearth_check_cdn         — CDN fingerprinting for a hostname
+//   - unearth_is_cdn_ip         — classify one or more IPs as CDN or origin
+//   - unearth_list_techniques   — list all registered techniques with metadata
 //
 // API keys are loaded from the environment using the same env vars as the CLI.
 // With no keys, keyless techniques (ct_fingerprint, crtsh, spf_mx, …) still run.
@@ -21,10 +24,12 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"github.com/unearth-tool/unearth/pkg/cdn"
 	"github.com/unearth-tool/unearth/pkg/config"
 	"github.com/unearth-tool/unearth/pkg/techniques"
 	"github.com/unearth-tool/unearth/pkg/unearth"
@@ -48,6 +53,9 @@ func main() {
 	registerDNSHistory(s, keys)
 	registerSubdomainEnum(s, keys)
 	registerHostHeaderProbe(s, keys)
+	registerCheckCDN(s)
+	registerIsCDNIP(s)
+	registerListTechniques(s)
 
 	if err := server.ServeStdio(s); err != nil {
 		fmt.Fprintf(os.Stderr, "unearth-mcp: %v\n", err)
@@ -256,5 +264,135 @@ func registerHostHeaderProbe(s *server.MCPServer, keys techniques.APIKeys) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 		return mcp.NewToolResultText(resultToJSON(cands)), nil
+	})
+}
+
+// ── unearth_check_cdn ─────────────────────────────────────────────────────────
+
+// registerCheckCDN adds unearth_check_cdn: CDN fingerprinting for a hostname.
+// It uses DNS CNAME/NS signals, A/AAAA IP-range lookup, and one HTTP GET to
+// determine which CDN (if any) fronts the target and returns all matched
+// detection signals. Useful for an AI agent to decide whether to proceed with
+// origin discovery and to confirm a final candidate is not still behind a CDN.
+func registerCheckCDN(s *server.MCPServer) {
+	tool := mcp.NewTool("unearth_check_cdn",
+		mcp.WithDescription("Fingerprint whether a hostname is behind a CDN. Returns the detected CDN name (empty string when none detected) and all matched detection signals (DNS CNAME/NS patterns, IP-range membership, HTTP response headers)."),
+		mcp.WithString("target",
+			mcp.Required(),
+			mcp.Description("The hostname to fingerprint, e.g. example.com"),
+		),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		target, err := req.RequireString("target")
+		if err != nil || target == "" {
+			return mcp.NewToolResultError("target is required"), nil
+		}
+		target = strings.TrimSpace(target)
+
+		det, detErr := cdn.Detect(ctx, target, nil)
+		type cdnResult struct {
+			Target  string   `json:"target"`
+			CDN     string   `json:"cdn"`
+			Signals []string `json:"signals"`
+			Warning string   `json:"warning,omitempty"`
+		}
+		res := cdnResult{
+			Target:  target,
+			CDN:     det.CDN,
+			Signals: det.Signals,
+		}
+		if detErr != nil {
+			res.Warning = detErr.Error()
+		}
+		if res.Signals == nil {
+			res.Signals = []string{}
+		}
+		return mcp.NewToolResultText(resultToJSON(res)), nil
+	})
+}
+
+// ── unearth_is_cdn_ip ────────────────────────────────────────────────────────
+
+// registerIsCDNIP adds unearth_is_cdn_ip: classify one or more IP addresses
+// as belonging to a known CDN provider or as a potential origin. Uses the
+// embedded CDN IP-range tables (same tables the discovery engine uses to
+// filter candidates). No network calls are made.
+func registerIsCDNIP(s *server.MCPServer) {
+	tool := mcp.NewTool("unearth_is_cdn_ip",
+		mcp.WithDescription("Classify one or more IP addresses against the embedded CDN provider IP ranges. For each IP, returns whether it is a CDN IP and, if so, which provider owns it. Uses the same tables the discovery engine uses to filter candidates. No network requests."),
+		mcp.WithArray("ips",
+			mcp.Required(),
+			mcp.Description("Array of IP address strings to classify, e.g. [\"104.16.1.1\", \"1.2.3.4\"]"),
+		),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_ = ctx
+		rawIPs, ok := req.GetArguments()["ips"].([]any)
+		if !ok || len(rawIPs) == 0 {
+			return mcp.NewToolResultError("ips must be a non-empty array of IP strings"), nil
+		}
+
+		type ipResult struct {
+			IP       string `json:"ip"`
+			IsCDN    bool   `json:"is_cdn"`
+			Provider string `json:"provider,omitempty"`
+			Error    string `json:"error,omitempty"`
+		}
+		results := make([]ipResult, 0, len(rawIPs))
+		for _, v := range rawIPs {
+			ipStr, ok := v.(string)
+			if !ok {
+				results = append(results, ipResult{IP: fmt.Sprintf("%v", v), Error: "not a string"})
+				continue
+			}
+			ipStr = strings.TrimSpace(ipStr)
+			a, err := netip.ParseAddr(ipStr)
+			if err != nil {
+				results = append(results, ipResult{IP: ipStr, Error: "invalid IP address"})
+				continue
+			}
+			a = a.Unmap()
+			provider := cdn.ProviderForIP(a)
+			results = append(results, ipResult{
+				IP:       a.String(),
+				IsCDN:    provider != "",
+				Provider: provider,
+			})
+		}
+		return mcp.NewToolResultText(resultToJSON(results)), nil
+	})
+}
+
+// ── unearth_list_techniques ───────────────────────────────────────────────────
+
+// registerListTechniques adds unearth_list_techniques: return metadata for
+// every registered technique. An AI agent can use this to understand what
+// capabilities are available, which techniques require API keys, and what
+// tier each technique operates at before selecting specific techniques to run
+// via unearth_discover or unearth_cert_fingerprint.
+func registerListTechniques(s *server.MCPServer) {
+	tool := mcp.NewTool("unearth_list_techniques",
+		mcp.WithDescription("List all registered unearth origin-discovery techniques with their metadata: name, tier (passive/active/aggressive), whether an API key is required, and default confidence weight [0,1]. Use this to understand available capabilities before running discovery."),
+	)
+	s.AddTool(tool, func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		_ = ctx
+		_ = req
+		all := techniques.All()
+		type techInfo struct {
+			Name           string  `json:"name"`
+			Tier           string  `json:"tier"`
+			RequiresAPIKey bool    `json:"requires_api_key"`
+			DefaultWeight  float64 `json:"default_weight"`
+		}
+		infos := make([]techInfo, 0, len(all))
+		for _, t := range all {
+			infos = append(infos, techInfo{
+				Name:           t.Name(),
+				Tier:           t.Tier().String(),
+				RequiresAPIKey: t.RequiresAPIKey(),
+				DefaultWeight:  t.DefaultWeight(),
+			})
+		}
+		return mcp.NewToolResultText(resultToJSON(infos)), nil
 	})
 }
