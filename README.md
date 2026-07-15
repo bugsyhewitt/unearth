@@ -240,6 +240,7 @@ Flags:
       --email-file string       Path to a raw email (.eml); its Received: headers are mined for origin IPs
       --cve string              CVE id (e.g. CVE-2024-1709) that scopes the shodan_cve technique to hosts under the target apex affected by that CVE
       --pipeline-batch int      Targets to discover concurrently in list/stdin mode (default 1 = sequential)
+      --exclude-technique string  Comma-separated technique names to skip; may be repeated (e.g. --exclude-technique crtsh,shodan_cert)
       --verbose                 Print per-technique results to stderr
       --silent                  Suppress all stderr output
 
@@ -291,6 +292,21 @@ unearth -l subdomains.txt --pipeline-batch 8 -o jsonl
 ```
 
 `--pipeline-batch 1` (the default) preserves the original strictly-sequential behavior. The per-target `--concurrency` flag (technique-level parallelism) is independent and composes with `--pipeline-batch`.
+
+### Excluding techniques
+
+`--exclude-technique <name>[,<name>...]` skips one or more techniques by name for a single run. This is useful when you know a technique is irrelevant (e.g. no MX record so `spf_mx` will always miss), when you are troubleshooting noisy results, or when a backend is rate-limiting you.
+
+```sh
+# Run all passive techniques except crt.sh (rate-limited today)
+unearth --exclude-technique crtsh example.com
+
+# Exclude multiple techniques (comma-separated or repeated flag)
+unearth --exclude-technique crtsh,shodan_cert example.com
+unearth --exclude-technique crtsh --exclude-technique spf_mx example.com
+```
+
+Technique names are the `name` field shown in the `unearth_list_techniques` MCP tool and in the `techniques` array of every JSONL/JSON result. An unknown name produces a `warnings` entry in the result and is otherwise ignored — it does not prevent the run.
 
 ---
 
