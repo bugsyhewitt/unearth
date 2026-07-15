@@ -66,7 +66,7 @@ those results are origin candidates.
 
 ---
 
-## P1 — ASN-range sweep technique (`asn_sweep`)
+## P1 — ASN-range sweep technique (`asn_sweep`) — ✅ IMPLEMENTED (Phase 2, 2026-05-26)
 
 **What:** Resolve the target's current DNS records to find its ASN. Use a BGP
 lookup service (Team Cymru WHOIS or BGPView REST API) to retrieve the full
@@ -260,7 +260,7 @@ origin (since CDN edge nodes have very different TLS stacks from origin servers)
 
 ---
 
-## P2 — Apex vs. www split-DNS detection technique (`split_dns`)
+## P2 — Apex vs. www split-DNS detection technique (`split_dns`) — ✅ IMPLEMENTED (Phase 2, 2026-05-26)
 
 **What:** Resolve both the apex (`example.com`) and `www.example.com` to their
 A/AAAA records. Many organizations proxy only the `www` subdomain through a CDN
