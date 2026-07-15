@@ -81,7 +81,7 @@ func newRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().BoolVar(&f.refresh, "refresh", false, "Ignore cached entries but write fresh results")
 
 	// Output.
-	cmd.Flags().StringVarP(&f.output, "output", "o", "jsonl", "Output format: jsonl | json | table")
+	cmd.Flags().StringVarP(&f.output, "output", "o", "jsonl", "Output format: jsonl | json | table | sarif")
 	cmd.Flags().IntVar(&f.top, "top", 50, "Max candidates shown per target")
 
 	// Execution.
@@ -107,9 +107,9 @@ func runRoot(ctx context.Context, f *rootFlags, posArgs []string, stdin io.Reade
 		return errUsage("--silent and --verbose are mutually exclusive")
 	}
 	switch f.output {
-	case "jsonl", "json", "table":
+	case "jsonl", "json", "table", "sarif":
 	default:
-		return errUsage("invalid --output: must be jsonl, json, or table")
+		return errUsage("invalid --output: must be jsonl, json, table, or sarif")
 	}
 	if f.pipelineBatch < 1 {
 		return errUsage("--pipeline-batch must be >= 1")

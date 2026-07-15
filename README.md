@@ -189,6 +189,29 @@ example.com    cloudflare   93.184.216.34   0.82   3     ct_fingerprint, crtsh, 
 example.com    cloudflare   1.2.3.4         0.35   1     subdomain_enum
 ```
 
+**`sarif`** — [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html) for GitHub Code Scanning and other security toolchain consumers:
+
+```sh
+unearth -o sarif example.com > results.sarif.json
+# Upload to GitHub Code Scanning:
+gh run upload-artifact results.sarif.json --name code-scanning-results
+```
+
+Each candidate IP becomes a SARIF `result` under rule `UNEARTH001` ("OriginIPCandidate"). The `level` field reflects confidence:
+
+| Score | SARIF level |
+|---|---|
+| ≥ 0.80 | `error` — high confidence |
+| ≥ 0.50 | `warning` — medium confidence |
+| < 0.50 | `note` — low confidence |
+
+The `properties` bag on each result carries `score`, `corroboration`, `single_source`, `cdn_detected`, and the full `techniques` array for tooling that can read SARIF property bags (e.g. GitHub Advanced Security UI extensions). The `logicalLocation.fullyQualifiedName` on each result is the target domain, so a single SARIF document from a multi-target run keeps every finding attributed to its source.
+
+```sh
+# Scan a program's subdomain list and emit SARIF for the security dashboard
+subfinder -d target.com -silent | unearth -l - --pipeline-batch 8 -o sarif > origins.sarif.json
+```
+
 ---
 
 ## CLI reference
@@ -200,7 +223,7 @@ Flags:
   -l, --list string         File of targets (one per line, # comments OK)
       --active              Include active-tier techniques
       --aggressive          Include aggressive-tier techniques (implies --active)
-  -o, --output string       Output format: jsonl | json | table (default "jsonl")
+  -o, --output string       Output format: jsonl | json | table | sarif (default "jsonl")
       --top int             Limit output to top N candidates (default 0 = all)
   -c, --concurrent int      Parallel technique slots (default 10)
       --timeout duration    Overall run timeout (default 5m0s)

@@ -456,3 +456,287 @@ func TestTierFromFlags(t *testing.T) {
 		t.Error("--aggressive wins over --active")
 	}
 }
+
+// --- SARIF output tests ---------------------------------------------------
+
+// sarifDoc is a minimal struct for unmarshalling SARIF output in tests. It
+// does not need to cover every SARIF field — only what the tests assert on.
+type sarifDoc struct {
+	Schema  string `json:"$schema"`
+	Version string `json:"version"`
+	Runs    []struct {
+		Tool struct {
+			Driver struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+				Rules   []struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"rules"`
+			} `json:"driver"`
+		} `json:"tool"`
+		Results []struct {
+			RuleID  string `json:"ruleId"`
+			Level   string `json:"level"`
+			Message struct {
+				Text string `json:"text"`
+			} `json:"message"`
+			Locations []struct {
+				LogicalLocations []struct {
+					FullyQualifiedName string `json:"fullyQualifiedName"`
+					Kind               string `json:"kind"`
+				} `json:"logicalLocations"`
+			} `json:"locations"`
+			Properties struct {
+				Score         float64 `json:"score"`
+				Corroboration int     `json:"corroboration"`
+				SingleSource  bool    `json:"single_source"`
+				CDNDetected   string  `json:"cdn_detected"`
+			} `json:"properties"`
+		} `json:"results"`
+	} `json:"runs"`
+}
+
+func TestRoot_SARIFOutput_Schema(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResult(target, "203.0.113.1", "203.0.113.2"), nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout: %s", code, stdout)
+	}
+
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse error: %v\n---\n%s", err, stdout)
+	}
+
+	// SARIF schema and version.
+	if doc.Schema == "" {
+		t.Error("$schema must be set")
+	}
+	if doc.Version != "2.1.0" {
+		t.Errorf("version: want 2.1.0, got %q", doc.Version)
+	}
+	if len(doc.Runs) != 1 {
+		t.Fatalf("runs: want 1, got %d", len(doc.Runs))
+	}
+
+	// Driver metadata.
+	driver := doc.Runs[0].Tool.Driver
+	if driver.Name != "unearth" {
+		t.Errorf("driver.name: want unearth, got %q", driver.Name)
+	}
+	if driver.Version == "" {
+		t.Error("driver.version must be set")
+	}
+	if len(driver.Rules) < 1 || driver.Rules[0].ID != "UNEARTH001" {
+		t.Errorf("rules: want UNEARTH001, got %v", driver.Rules)
+	}
+
+	// Two candidates → two results.
+	results := doc.Runs[0].Results
+	if len(results) != 2 {
+		t.Fatalf("results: want 2, got %d", len(results))
+	}
+}
+
+func TestRoot_SARIFOutput_ResultFields(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResult(target, "203.0.113.5"), nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v", err)
+	}
+	if len(doc.Runs[0].Results) != 1 {
+		t.Fatalf("want 1 result, got %d", len(doc.Runs[0].Results))
+	}
+	r := doc.Runs[0].Results[0]
+
+	if r.RuleID != "UNEARTH001" {
+		t.Errorf("ruleId: want UNEARTH001, got %q", r.RuleID)
+	}
+	if r.Message.Text == "" {
+		t.Error("message.text must not be empty")
+	}
+	if !strings.Contains(r.Message.Text, "203.0.113.5") {
+		t.Errorf("message should contain candidate IP, got %q", r.Message.Text)
+	}
+	if !strings.Contains(r.Message.Text, "example.test") {
+		t.Errorf("message should contain target, got %q", r.Message.Text)
+	}
+
+	// logical location carries the target domain.
+	if len(r.Locations) == 0 || len(r.Locations[0].LogicalLocations) == 0 {
+		t.Fatal("location must be set")
+	}
+	loc := r.Locations[0].LogicalLocations[0]
+	if loc.FullyQualifiedName != "example.test" {
+		t.Errorf("logicalLocation.fullyQualifiedName: want example.test, got %q", loc.FullyQualifiedName)
+	}
+	if loc.Kind != "namespace" {
+		t.Errorf("logicalLocation.kind: want namespace, got %q", loc.Kind)
+	}
+
+	// Properties: score and cdn_detected.
+	if r.Properties.Score <= 0 {
+		t.Errorf("properties.score must be > 0, got %f", r.Properties.Score)
+	}
+	if r.Properties.CDNDetected != "cloudflare" {
+		t.Errorf("properties.cdn_detected: want cloudflare, got %q", r.Properties.CDNDetected)
+	}
+}
+
+func TestRoot_SARIFOutput_Level(t *testing.T) {
+	// fakeResult gives score 0.9 for first IP → "error"
+	// and 0.8 for second → also "error" boundary; test with three IPs.
+	// Override score via a custom runner.
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return &unearth.Result{
+			Target:      target,
+			CDNDetected: "cloudflare",
+			Candidates: []unearth.ScoredIP{
+				{IP: "1.1.1.1", Score: 0.9, Corroboration: 2, Techniques: []unearth.TechniqueHit{{Name: "crtsh", Weight: 0.55}}},
+				{IP: "2.2.2.2", Score: 0.6, Corroboration: 1, Techniques: []unearth.TechniqueHit{{Name: "spf_mx", Weight: 0.50}}},
+				{IP: "3.3.3.3", Score: 0.3, Corroboration: 1, Techniques: []unearth.TechniqueHit{{Name: "subdomain_enum", Weight: 0.35}}},
+			},
+		}, nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v", err)
+	}
+	results := doc.Runs[0].Results
+	if len(results) != 3 {
+		t.Fatalf("want 3 results, got %d", len(results))
+	}
+
+	cases := []struct{ ip, wantLevel string }{
+		{"1.1.1.1", "error"},
+		{"2.2.2.2", "warning"},
+		{"3.3.3.3", "note"},
+	}
+	for i, tc := range cases {
+		r := results[i]
+		if r.Level != tc.wantLevel {
+			t.Errorf("result[%d] (%s): level want %q, got %q", i, tc.ip, tc.wantLevel, r.Level)
+		}
+		if !strings.Contains(r.Message.Text, tc.ip) {
+			t.Errorf("result[%d]: message should contain %s, got %q", i, tc.ip, r.Message.Text)
+		}
+	}
+}
+
+func TestRoot_SARIFOutput_ZeroCandidates(t *testing.T) {
+	// When there are no candidates, SARIF should still be a valid document
+	// with an empty results array (not null).
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return &unearth.Result{Target: target}, nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v", err)
+	}
+	if len(doc.Runs) != 1 {
+		t.Fatalf("want 1 run, got %d", len(doc.Runs))
+	}
+	results := doc.Runs[0].Results
+	// results must be an array (possibly empty), not null — verified by
+	// the successful JSON unmarshal into []struct above.
+	if results == nil {
+		t.Error("results must be a non-null empty array, not null")
+	}
+	if len(results) != 0 {
+		t.Errorf("want 0 results, got %d", len(results))
+	}
+}
+
+func TestRoot_SARIFOutput_TopCapped(t *testing.T) {
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResult(target, "1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4"), nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "--top", "2", "example.test")
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v", err)
+	}
+	if len(doc.Runs[0].Results) != 2 {
+		t.Errorf("--top 2 should cap to 2 SARIF results, got %d", len(doc.Runs[0].Results))
+	}
+}
+
+func TestRoot_SARIFOutput_MultiTarget(t *testing.T) {
+	// Two targets → results from both appear in the single run.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "targets.txt")
+	if err := os.WriteFile(path, []byte("alpha.test\nbeta.test\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withRunner(t, func(_ context.Context, target string, _ unearth.Options) (*unearth.Result, error) {
+		return fakeResult(target, "203.0.113."+target[:1]), nil
+	})
+	code, stdout, _ := captured(t, "-o", "sarif", "-l", path)
+	if code != 0 {
+		t.Fatalf("exit %d", code)
+	}
+	var doc sarifDoc
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sarif parse: %v", err)
+	}
+	// Each target has 1 candidate → 2 results total.
+	if len(doc.Runs[0].Results) != 2 {
+		t.Errorf("want 2 results (1 per target), got %d", len(doc.Runs[0].Results))
+	}
+	// Both targets should appear in logical locations.
+	targets := map[string]bool{}
+	for _, r := range doc.Runs[0].Results {
+		if len(r.Locations) > 0 && len(r.Locations[0].LogicalLocations) > 0 {
+			targets[r.Locations[0].LogicalLocations[0].FullyQualifiedName] = true
+		}
+	}
+	for _, want := range []string{"alpha.test", "beta.test"} {
+		if !targets[want] {
+			t.Errorf("expected target %q in SARIF results, got %v", want, targets)
+		}
+	}
+}
+
+// TestSarifLevel_Boundaries verifies the score→level mapping at boundary values.
+func TestSarifLevel_Boundaries(t *testing.T) {
+	cases := []struct {
+		score float64
+		want  string
+	}{
+		{1.00, "error"},
+		{0.80, "error"},
+		{0.799, "warning"},
+		{0.50, "warning"},
+		{0.499, "note"},
+		{0.00, "note"},
+	}
+	for _, tc := range cases {
+		got := sarifLevel(tc.score)
+		if got != tc.want {
+			t.Errorf("sarifLevel(%.3f): want %q, got %q", tc.score, tc.want, got)
+		}
+	}
+}
