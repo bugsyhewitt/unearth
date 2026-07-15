@@ -148,12 +148,8 @@ func (s *tableSink) write(stdout, _ io.Writer, res *unearth.Result, _ *rootFlags
 		if s.color {
 			score = s.colorScore(c.Score) + score + ansiReset
 		}
-		names := make([]string, len(c.Techniques))
-		for i, h := range c.Techniques {
-			names[i] = h.Name
-		}
 		if _, err := fmt.Fprintf(tw, "  %s\t%s\t%d\t%s\n",
-			c.IP, score, c.Corroboration, strings.Join(names, ",")); err != nil {
+			c.IP, score, c.Corroboration, strings.Join(techHitNames(c.Techniques), ",")); err != nil {
 			return err
 		}
 	}
@@ -336,13 +332,9 @@ func (s *sarifSink) buildResults(all []*unearth.Result) []sarifResult {
 		candidates := filterByConfidence(r.Candidates, s.minConfidence)
 		limit := capN(s.top, len(candidates))
 		for _, c := range candidates[:limit] {
-			techNames := make([]string, len(c.Techniques))
-			for i, h := range c.Techniques {
-				techNames[i] = h.Name
-			}
 			msgText := fmt.Sprintf(
 				"Origin IP candidate for %s: %s (score=%.2f, corroboration=%d, techniques=%s)",
-				r.Target, c.IP, c.Score, c.Corroboration, strings.Join(techNames, ","),
+				r.Target, c.IP, c.Score, c.Corroboration, strings.Join(techHitNames(c.Techniques), ","),
 			)
 			if r.CDNDetected != "" {
 				msgText += fmt.Sprintf(", cdn=%s", r.CDNDetected)
@@ -379,6 +371,15 @@ func (s *sarifSink) buildResults(all []*unearth.Result) []sarifResult {
 }
 
 // --- helpers ---------------------------------------------------------
+
+// techHitNames extracts the Name field from each TechniqueHit in order.
+func techHitNames(hits []unearth.TechniqueHit) []string {
+	names := make([]string, len(hits))
+	for i, h := range hits {
+		names[i] = h.Name
+	}
+	return names
+}
 
 func capN(top, have int) int {
 	if top <= 0 || top >= have {

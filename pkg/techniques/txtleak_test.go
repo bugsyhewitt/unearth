@@ -160,7 +160,7 @@ func TestTXTLeak_EmptyTarget(t *testing.T) {
 	}
 }
 
-func TestPublicOriginAddr(t *testing.T) {
+func TestIsPublicOriginAddr(t *testing.T) {
 	cases := map[string]bool{
 		"203.0.113.10":    true,  // TEST-NET-3, global unicast
 		"8.8.8.8":         true,  // global unicast
@@ -179,8 +179,8 @@ func TestPublicOriginAddr(t *testing.T) {
 	}
 	for s, want := range cases {
 		a := netip.MustParseAddr(s)
-		if got := publicOriginAddr(a); got != want {
-			t.Errorf("publicOriginAddr(%s) = %v, want %v", s, got, want)
+		if got := isPublicOriginAddr(a); got != want {
+			t.Errorf("isPublicOriginAddr(%s) = %v, want %v", s, got, want)
 		}
 	}
 }

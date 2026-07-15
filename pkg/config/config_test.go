@@ -41,14 +41,15 @@ func TestLoadWeights_AllKnownTechniquesPresent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name := range knownTechniques {
+	for _, tech := range techniques.All() {
+		name := tech.Name()
 		if _, ok := w.Weight(name); !ok {
 			t.Errorf("embedded default missing technique %q", name)
 		}
 	}
 	// And no extras leaked in.
 	for _, name := range w.Names() {
-		if _, ok := knownTechniques[name]; !ok {
+		if _, ok := techniques.Get(name); !ok {
 			t.Errorf("embedded default has unknown technique %q", name)
 		}
 	}
@@ -520,13 +521,27 @@ func TestEmbeddedAndConfigsYAMLMatch(t *testing.T) {
 // "unknown technique" warning, and the calibrate subcommand cannot surface
 // weight suggestions for it.
 //
-// This test guards against the v1.1 regression where seven techniques shipped
-// (split_dns, email_header, jarm_fingerprint, asn_sweep, shodan_cve,
-// favicon_hash, dns_txt_leak) but were never added to knownTechniques.
+// TestKnownTechniquesMatchesRegistry verifies that LoadWeights accepts weight
+// overrides for every registered technique without emitting an "unknown technique"
+// warning. Now that the validation uses the live registry (techniques.Get) instead
+// of a static map, this test simply confirms that any registered technique name
+// is accepted — i.e. LoadWeights warns only for names NOT in the registry.
 func TestKnownTechniquesMatchesRegistry(t *testing.T) {
+	dir := t.TempDir()
 	for _, tech := range techniques.All() {
-		if _, ok := knownTechniques[tech.Name()]; !ok {
-			t.Errorf("registered technique %q missing from knownTechniques in pkg/config/config.go — add it so users can override its weight without spurious warnings", tech.Name())
+		name := tech.Name()
+		path := dir + "/w.yaml"
+		if err := os.WriteFile(path, []byte("weights:\n  "+name+": 0.5\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, warns, err := LoadWeights(path)
+		if err != nil {
+			t.Errorf("LoadWeights for technique %q returned error: %v", name, err)
+		}
+		for _, w := range warns {
+			if strings.Contains(w, "unknown technique") {
+				t.Errorf("registered technique %q triggered unknown-technique warning: %s", name, w)
+			}
 		}
 	}
 }
