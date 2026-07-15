@@ -220,7 +220,26 @@ certificate-fingerprint queries and favicon hash queries via REST APIs.
 
 ---
 
-## P2 — JARM active server fingerprinting technique (`jarm_fingerprint`)
+## P2 — JARM active server fingerprinting technique (`jarm_fingerprint`) — ✅ IMPLEMENTED (Phase 2, 2026-07-14)
+
+> Shipped in `pkg/techniques/jarm.go`. Active tier, weight 0.80, no API key
+> required. Self-contained pure-Go JARM implementation (no external dependency):
+> crafts the 10 canonical TLS ClientHello variants per the Salesforce JARM spec,
+> reads each server's handshake response, and folds them into a 62-character
+> fingerprint via cipher-index prefix + SHA-256 extension hash. Probes the
+> CDN-fronted target first for a reference JARM, then probes each seeded
+> candidate IP; candidates whose JARM matches the reference are surfaced at
+> weight 0.80. Candidates that match known CDN-edge JARM constants (Cloudflare,
+> Fastly, Akamai, CloudFront) are rejected regardless of reference equality.
+> Known CDN-IP ranges (from `pkg/cdn`) are skipped before probing. Wired into
+> the phase-2 candidate pipeline via `ConsumesCandidates() bool { return true }`,
+> drawing from `RunOptions.SeedIPs` exactly like `host_header`. Registered in
+> `init()`. `jarmProber` is a package-level var replaced in tests for
+> deterministic mock probes. 12 unit tests cover: matching candidate surfaced,
+> no seeds = no work, unreachable reference = no candidates, CDN-signature
+> candidate rejected, non-matching candidate dropped, CDN seed IP skipped,
+> technique metadata, registration, hash determinism, empty-probe all-zero
+> result, extension ordering, cipher index, and ClientHello wire format.
 
 **What:** For each candidate IP, probe port 443 with JARM's 10-probe TLS
 handshake sequence. Compute the JARM hash. Compare against the target's JARM

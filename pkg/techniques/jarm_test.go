@@ -178,8 +178,8 @@ func TestJARMTechnique_Metadata(t *testing.T) {
 	if j.RequiresAPIKey() {
 		t.Error("jarm must not require an API key")
 	}
-	if j.DefaultWeight() != 0.70 {
-		t.Errorf("weight = %v, want 0.70", j.DefaultWeight())
+	if j.DefaultWeight() != 0.80 {
+		t.Errorf("weight = %v, want 0.80", j.DefaultWeight())
 	}
 	if !j.ConsumesCandidates() {
 		t.Error("jarm must be a phase-2 candidate consumer")
